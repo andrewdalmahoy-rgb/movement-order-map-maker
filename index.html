@@ -129,7 +129,7 @@
 
 <script>
 /* ---------------- USER CONFIG ---------------- */
-const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjE2ZGM5M2E5M2M0YjRiM2ZiNTg2YmJhZWUxNDc0ODQ0IiwiaCI6Im11cm11cjY0In0=";   
+const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjE2ZGM5M2E5M2M0YjRiM2ZiNTg2YmJhZWUxNDc0ODQ0IiwiaCI6Im11cm11cjY0In0=";  
 
 /* ---------------- MAP SETUP ---------------- */
 const map = L.map("map").setView([52.5, -1.5], 6);
@@ -152,7 +152,7 @@ const iconGreen = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-
 const iconRed   = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png");
 const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png");
 
-/* AUTOCOMPLETE STORAGE */
+/* GOOGLE AUTOCOMPLETE STORAGE */
 const acMap = new Map();
 
 /* ATTACH AUTOCOMPLETE */
@@ -166,7 +166,7 @@ function attachAutocomplete(input) {
   acMap.set(input, ac);
 }
 
-/* GEOCODE FALLBACK */
+/* GOOGLE GEOCODE FALLBACK */
 async function geocodeText(query) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M`;
   const res = await fetch(url);
@@ -192,7 +192,7 @@ async function requestORS(start, end) {
   const response = await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson", {
     method: "POST",
     headers: {
-      "Authorization": "Bearer " + apiKey,        // ←← FIX
+      "Authorization": "Bearer " + apiKey,        // FIXED
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -230,23 +230,25 @@ document.getElementById("addStopBtn").addEventListener("click", () => {
   attachAutocomplete(row.querySelector(".address-input"));
 });
 
-/* MAIN ROUTE BUTTON */
+/* MAIN ROUTE BUTTON — SAFE SELECTORS */
 document.getElementById("routeBtn").addEventListener("click", async () => {
   try {
     clearMap();
 
     const rows = [...document.querySelectorAll(".stop-row")];
     const coords = [];
+
     const labels = [];
     const boxColors = [];
     const textColors = [];
 
     for (let row of rows) {
       const input = row.querySelector(".address-input");
-      const ac = acMap.get(input);
-      const typed = input.value.trim();
+      const typed = input ? input.value.trim() : "";
 
+      const ac = acMap.get(input);
       let place = ac ? ac.getPlace() : null;
+
       let latLng;
 
       if (place && place.geometry) {
@@ -259,9 +261,15 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
       }
 
       coords.push(latLng);
-      labels.push(row.querySelector(".label").value || "Stop");
-      boxColors.push(row.querySelector(".boxColor").value);
-      textColors.push(row.querySelector(".textColor").value);
+
+      /* SAFE SELECTORS */
+      const labelInput = row.querySelector(".label");
+      const boxInput   = row.querySelector(".boxColor");
+      const textInput  = row.querySelector(".textColor");
+
+      labels.push(labelInput ? labelInput.value : "Stop");
+      boxColors.push(boxInput ? boxInput.value : "#2e8b57");
+      textColors.push(textInput ? textInput.value : "#ffffff");
     }
 
     /* DRAW MARKERS */
