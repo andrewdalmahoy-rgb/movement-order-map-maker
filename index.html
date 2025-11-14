@@ -82,6 +82,7 @@
       transform: translateY(-12px);
     }
   </style>
+
 </head>
 
 <body>
@@ -128,17 +129,17 @@
 <div id="map"></div>
 
 <script>
-/* ------------ USER CONFIG (INSERT YOUR KEY BELOW) ---------- */
+/* ------------ USER CONFIG --------------- */
 const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjE2ZGM5M2E5M2M0YjRiM2ZiNTg2YmJhZWUxNDc0ODQ0IiwiaCI6Im11cm11cjY0In0=";
 
-/* ---------------- MAP SETUP ---------------- */
+/* ------------ MAP SETUP ----------------- */
 const map = L.map("map").setView([52.5, -1.5], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
 let markerGroup = L.layerGroup().addTo(map);
 let routeLayers = [];
 
-/* MARKER ICONS */
+/* ------------ ICONS --------------------- */
 function icon(url) {
   return L.icon({
     iconUrl: url,
@@ -147,15 +148,13 @@ function icon(url) {
     iconAnchor:[12,41]
   });
 }
-
 const iconGreen = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png");
 const iconRed   = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png");
 const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png");
 
-/* GOOGLE AUTOCOMPLETE STORAGE */
-const acMap = new Map();
+/* ------------ GOOGLE AUTOCOMPLETE --------- */
+const placeStore = new Map();  // input → place object
 
-/* ATTACH AUTOCOMPLETE */
 function attachAutocomplete(input) {
   if (!window.google || !google.maps.places) return;
 
@@ -163,39 +162,39 @@ function attachAutocomplete(input) {
     fields: ["geometry"]
   });
 
-  acMap.set(input, ac);
+  google.maps.event.addListener(ac, "place_changed", () => {
+    placeStore.set(input, ac.getPlace());
+  });
 }
 
-/* GOOGLE GEOCODE FALLBACK */
+/* ------------ GOOGLE GEOCODE FALLBACK ------ */
 async function geocodeText(query) {
-  if (!query) throw new Error("Empty address");
   const url =
     `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M`;
 
   const res = await fetch(url);
   const data = await res.json();
 
-  if (!data.results || !data.results.length) {
+  if (!data.results?.length)
     throw new Error("Could not geocode: " + query);
-  }
 
   const loc = data.results[0].geometry.location;
   return [loc.lat, loc.lng];
 }
 
-/* CLEAR MAP */
+/* ------------ CLEAR MAP -------------------- */
 function clearMap() {
   markerGroup.clearLayers();
   routeLayers.forEach(r => map.removeLayer(r));
   routeLayers = [];
 }
 
-/* ORS ROUTING (BEARER AUTH REQUIRED FOR YOUR KEY) */
+/* ------------ ORS ROUTING (BEARER) ---------- */
 async function requestORS(start, end) {
   const response = await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson", {
     method: "POST",
     headers: {
-      "Authorization": "Bearer " + apiKey,   // FIXED
+      "Authorization": "Bearer " + apiKey,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -207,14 +206,14 @@ async function requestORS(start, end) {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error("ORS error " + response.status + ": " + text);
+    const msg = await response.text();
+    throw new Error("ORS error " + response.status + ": " + msg);
   }
 
   return response.json();
 }
 
-/* ADD STOP ROW */
+/* ------------ ADD STOP ROW ------------------- */
 document.getElementById("addStopBtn").addEventListener("click", () => {
   const row = document.createElement("div");
   row.className = "stop-row";
@@ -233,7 +232,7 @@ document.getElementById("addStopBtn").addEventListener("click", () => {
   attachAutocomplete(row.querySelector(".address-input"));
 });
 
-/* MAIN ROUTE BUTTON — SAFE SELECTORS + EMPTY PROTECTION */
+/* ------------ MAIN ROUTE BUTTON --------------- */
 document.getElementById("routeBtn").addEventListener("click", async () => {
   try {
     clearMap();
@@ -246,15 +245,14 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
 
     for (let row of rows) {
       const input = row.querySelector(".address-input");
-      const typed = input ? input.value.trim() : "";
+      const typed = input.value.trim();
 
       if (!typed) {
         alert("Please enter an address for every stop.");
         return;
       }
 
-      const ac = acMap.get(input);
-      const place = ac ? ac.getPlace() : null;
+      let place = placeStore.get(input);
 
       let latLng;
 
@@ -269,14 +267,9 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
 
       coords.push(latLng);
 
-      /* SAFE SELECTORS */
-      const labelInput = row.querySelector(".label");
-      const boxInput   = row.querySelector(".boxColor");
-      const textInput  = row.querySelector(".textColor");
-
-      labels.push(labelInput ? labelInput.value : "Stop");
-      boxColors.push(boxInput ? boxInput.value : "#2e8b57");
-      textColors.push(textInput ? textInput.value : "#ffffff");
+      labels.push(row.querySelector(".label")?.value || "Stop");
+      boxColors.push(row.querySelector(".boxColor")?.value || "#2e8b57");
+      textColors.push(row.querySelector(".textColor")?.value || "#ffffff");
     }
 
     /* DRAW MARKERS */
@@ -284,19 +277,21 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
     const size = document.getElementById("labelFontSize").value;
 
     coords.forEach((c, i) => {
-      let ic = i === 0 ? iconGreen :
-               i === coords.length - 1 ? iconRed : iconBlue;
+      const ic =
+        i === 0 ? iconGreen :
+        i === coords.length - 1 ? iconRed :
+        iconBlue;
 
       L.marker(c, { icon: ic }).addTo(markerGroup);
 
       L.marker(c, {
         icon: L.divIcon({
           html: `<div class="label-box"
-                      style="background:${boxColors[i]};
-                             color:${textColors[i]};
-                             font-family:${font};
-                             font-size:${size};">
-                  ${labels[i]}
+                  style="background:${boxColors[i]};
+                         color:${textColors[i]};
+                         font-family:${font};
+                         font-size:${size};">
+                 ${labels[i]}
                  </div>`,
           className:"",
           iconSize:[0,0],
@@ -322,7 +317,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
     /* FIT MAP */
     let bounds = L.latLngBounds();
     routeLayers.forEach(r => bounds.extend(r.getBounds()));
-    map.fitBounds(bounds, { padding: [40, 40] });
+    map.fitBounds(bounds, { padding:[40,40] });
 
   } catch (err) {
     alert("Error: " + err.message);
