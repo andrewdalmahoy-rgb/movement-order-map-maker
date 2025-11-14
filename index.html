@@ -86,7 +86,7 @@
 
 <body>
 
-<header><h2>Multi-Stop Route Planner (Google Autocomplete + Geocoding)</h2></header>
+<header><h2>Multi-Stop Route Planner</h2></header>
 
 <div class="controls">
 
@@ -128,7 +128,10 @@
 <div id="map"></div>
 
 <script>
-/* ---------------- MAP INITIALISATION ---------------- */
+/* ---------------- USER CONFIG ---------------- */
+const apiKey = "YOUR_KEY_HERE";   // ← ← ← REPLACE THIS
+
+/* ---------------- MAP SETUP ---------------- */
 const map = L.map("map").setView([52.5, -1.5], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
@@ -149,7 +152,7 @@ const iconGreen = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-
 const iconRed   = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png");
 const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png");
 
-/* GOOGLE AUTOCOMPLETE MAPPING */
+/* AUTOCOMPLETE STORAGE */
 const acMap = new Map();
 
 /* ATTACH AUTOCOMPLETE */
@@ -163,7 +166,7 @@ function attachAutocomplete(input) {
   acMap.set(input, ac);
 }
 
-/* GOOGLE GEOCODING FALLBACK */
+/* GEOCODE FALLBACK */
 async function geocodeText(query) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M`;
   const res = await fetch(url);
@@ -184,12 +187,12 @@ function clearMap() {
   routeLayers = [];
 }
 
-/* ORS ROUTING */
+/* ORS ROUTING — FIXED WITH BEARER AUTH */
 async function requestORS(start, end) {
   const response = await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson", {
     method: "POST",
     headers: {
-      "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZhNzZmYjZlYzg1NTQyN2ZiYmQzYjgyMzUyYTg2NGRkIiwiaCI6Im11cm11cjY0In0=",
+      "Authorization": "Bearer " + apiKey,        // ←← FIX
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -199,6 +202,11 @@ async function requestORS(start, end) {
       ]
     })
   });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error("ORS error " + response.status + ": " + text);
+  }
 
   return response.json();
 }
@@ -223,8 +231,7 @@ document.getElementById("addStopBtn").addEventListener("click", () => {
 });
 
 /* MAIN ROUTE BUTTON */
-document.getElementById("routeBtn").addEventListe
-ner("click", async () => {
+document.getElementById("routeBtn").addEventListener("click", async () => {
   try {
     clearMap();
 
@@ -257,7 +264,7 @@ ner("click", async () => {
       textColors.push(row.querySelector(".textColor").value);
     }
 
-    /* DRAW MARKERS & LABELS */
+    /* DRAW MARKERS */
     const font = document.getElementById("labelFont").value;
     const size = document.getElementById("labelFontSize").value;
 
@@ -309,7 +316,7 @@ ner("click", async () => {
 });
 </script>
 
-<!-- LOAD GOOGLE MAPS -->
+<!-- GOOGLE PLACES API -->
 <script async
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"
   onload="document.querySelectorAll('.address-input').forEach(i => attachAutocomplete(i));">
