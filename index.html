@@ -152,14 +152,29 @@ const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-
 /* AUTOCOMPLETE STORAGE */
 const acMap = new Map();
 
-/* Attach autocomplete safely */
+/* SAFE ATTACH AUTOCOMPLETE */
 function attachAutocomplete(input) {
-  if (!window.google || !google.maps || !google.maps.places) return;
+  if (!window.google || !google.maps.places) return;
 
   const ac = new google.maps.places.Autocomplete(input, {
     fields: ["geometry", "formatted_address"]
   });
   acMap.set(input, ac);
+}
+
+/* GOOGLE GEOCODING FALLBACK */
+async function geocodeText(query) {
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (!data.results || !data.results.length) {
+    throw new Error("Could not geocode: " + query);
+  }
+
+  const loc = data.results[0].geometry.location;
+  return [loc.lat, loc.lng];
 }
 
 /* CLEAR MAP */
@@ -169,7 +184,7 @@ function clearMap() {
   routeLayers = [];
 }
 
-/* ORS ROUTE FUNCTION */
+/* ORS ROUTE */
 async function requestORS(start, end) {
   const response = await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson", {
     method: "POST",
@@ -204,7 +219,6 @@ document.getElementById("addStopBtn").addEventListener("click", () => {
   row.querySelector(".removeStop").addEventListener("click", () => row.remove());
   document.getElementById("stopContainer").appendChild(row);
 
-  // Attach autocomplete *after Google is loaded*
   attachAutocomplete(row.querySelector(".address-input"));
 });
 
@@ -222,24 +236,22 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
     for (let row of rows) {
       const input = row.querySelector(".address-input");
       const ac = acMap.get(input);
+      const text = input.value.trim();
 
-      if (!ac) {
-        alert("Google is still loading. Please wait a moment and try again.");
-        return;
+      let latLng;
+
+      if (ac && ac.getPlace && ac.getPlace() && ac.getPlace().geometry) {
+        // User clicked a suggestion
+        latLng = [
+          ac.getPlace().geometry.location.lat(),
+          ac.getPlace().geometry.location.lng()
+        ];
+      } else {
+        // User typed text → use Geocoding fallback
+        latLng = await geocodeText(text);
       }
 
-      const place = ac.getPlace();
-
-      if (!place || !place.geometry) {
-        alert("Please select an address from the dropdown suggestions.");
-        return;
-      }
-
-      coords.push([
-        place.geometry.location.lat(),
-        place.geometry.location.lng()
-      ]);
-
+      coords.push(latLng);
       labels.push(row.querySelector(".label").value || "Stop");
       boxColors.push(row.querySelector(".boxColor").value);
       textColors.push(row.querySelector(".textColor").value);
@@ -291,24 +303,16 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
     map.fitBounds(bounds, { padding:[40,40] });
 
   } catch (err) {
-    alert("Error: " + err);
+    alert("Error: " + err.message);
     console.error(err);
   }
 });
 </script>
 
-<!-- GOOGLE MAPS: LOAD ONCE, THEN INIT AUTOCOMPLETE -->
-<script>
-window.startGoogleMaps = function () {
-  document.querySelectorAll(".address-input").forEach(input => {
-    attachAutocomplete(input);
-  });
-};
-</script>
-
+<!-- LOAD GOOGLE MAPS -->
 <script async
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"
-  onload="startGoogleMaps()">
+  onload="document.querySelectorAll('.address-input').forEach(i => attachAutocomplete(i));">
 </script>
 
 </body>
