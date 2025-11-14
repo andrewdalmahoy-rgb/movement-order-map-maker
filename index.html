@@ -152,24 +152,14 @@ const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-
 /* AUTOCOMPLETE STORAGE */
 const acMap = new Map();
 
-/* Attach autocomplete to a single input (safe) */
+/* Attach autocomplete safely */
 function attachAutocomplete(input) {
-  if (!window.google || !google.maps || !google.maps.places) {
-    console.warn("Google Places API not ready yet.");
-    return;
-  }
+  if (!window.google || !google.maps || !google.maps.places) return;
+
   const ac = new google.maps.places.Autocomplete(input, {
     fields: ["geometry", "formatted_address"]
   });
   acMap.set(input, ac);
-}
-
-/* Called by Google Maps JS via &callback=initAutocomplete */
-function initAutocomplete() {
-  // Attach autocomplete to all existing address inputs
-  document.querySelectorAll(".address-input").forEach(input => {
-    attachAutocomplete(input);
-  });
 }
 
 /* CLEAR MAP */
@@ -214,8 +204,8 @@ document.getElementById("addStopBtn").addEventListener("click", () => {
   row.querySelector(".removeStop").addEventListener("click", () => row.remove());
   document.getElementById("stopContainer").appendChild(row);
 
-  const input = row.querySelector(".address-input");
-  attachAutocomplete(input);
+  // Attach autocomplete *after Google is loaded*
+  attachAutocomplete(row.querySelector(".address-input"));
 });
 
 /* ROUTE BUTTON */
@@ -241,7 +231,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
       const place = ac.getPlace();
 
       if (!place || !place.geometry) {
-        alert("Please select an address from the dropdown suggestions (don’t just type and press Enter).");
+        alert("Please select an address from the dropdown suggestions.");
         return;
       }
 
@@ -307,9 +297,18 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
 });
 </script>
 
-<!-- LOAD GOOGLE MAPS ONCE, WITH CALLBACK -->
-<script async defer
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places&callback=initAutocomplete">
+<!-- GOOGLE MAPS: LOAD ONCE, THEN INIT AUTOCOMPLETE -->
+<script>
+window.startGoogleMaps = function () {
+  document.querySelectorAll(".address-input").forEach(input => {
+    attachAutocomplete(input);
+  });
+};
+</script>
+
+<script async
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"
+  onload="startGoogleMaps()">
 </script>
 
 </body>
