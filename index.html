@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Multi-Stop Route Planner</title>
 
-  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
@@ -84,16 +83,14 @@
   </style>
 
 </head>
-
 <body>
 
 <header><h2>Multi-Stop Route Planner</h2></header>
 
 <div class="controls">
-
   <div id="stopContainer">
 
-    <!-- Default START row -->
+    <!-- START -->
     <div class="stop-row">
       <input type="text" class="address-input" placeholder="Start address">
       <input type="text" class="label" placeholder="Start">
@@ -102,7 +99,7 @@
       <button class="removeStop">✖</button>
     </div>
 
-    <!-- Default END row -->
+    <!-- END -->
     <div class="stop-row">
       <input type="text" class="address-input" placeholder="End address">
       <input type="text" class="label" placeholder="End">
@@ -129,17 +126,16 @@
 <div id="map"></div>
 
 <script>
-/* ------------ USER CONFIG --------------- */
 const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjE2ZGM5M2E5M2M0YjRiM2ZiNTg2YmJhZWUxNDc0ODQ0IiwiaCI6Im11cm11cjY0In0=";
 
-/* ------------ MAP SETUP ----------------- */
+/* MAP */
 const map = L.map("map").setView([52.5, -1.5], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
 let markerGroup = L.layerGroup().addTo(map);
 let routeLayers = [];
 
-/* ------------ ICONS --------------------- */
+/* ICONS */
 function icon(url) {
   return L.icon({
     iconUrl: url,
@@ -152,184 +148,160 @@ const iconGreen = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-
 const iconRed   = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png");
 const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png");
 
-/* ------------ GOOGLE AUTOCOMPLETE --------- */
-const placeStore = new Map();  // input → place object
+/* GOOGLE AUTOCOMPLETE */
+const placeStore = new Map();
 
-function attachAutocomplete(input) {
-  if (!window.google || !google.maps.places) return;
+function attachAutocomplete(input){
+  if(!window.google || !google.maps.places) return;
 
-  const ac = new google.maps.places.Autocomplete(input, {
-    fields: ["geometry"]
-  });
-
-  google.maps.event.addListener(ac, "place_changed", () => {
+  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+  google.maps.event.addListener(ac,"place_changed",()=>{
     placeStore.set(input, ac.getPlace());
   });
 }
 
-/* ------------ GOOGLE GEOCODE FALLBACK ------ */
-async function geocodeText(query) {
-  const url =
-    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M`;
+/* GOOGLE GEOCODE FALLBACK */
+async function geocodeText(q){
+  const url=
+   `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M`;
 
-  const res = await fetch(url);
-  const data = await res.json();
+  const r=await fetch(url);
+  const d=await r.json();
+  if(!d.results?.length) return null;
 
-  if (!data.results?.length)
-    throw new Error("Could not geocode: " + query);
-
-  const loc = data.results[0].geometry.location;
-  return [loc.lat, loc.lng];
+  return [
+    d.results[0].geometry.location.lat,
+    d.results[0].geometry.location.lng
+  ];
 }
 
-/* ------------ CLEAR MAP -------------------- */
-function clearMap() {
+/* CLEAR MAP */
+function clearMap(){
   markerGroup.clearLayers();
-  routeLayers.forEach(r => map.removeLayer(r));
-  routeLayers = [];
+  routeLayers.forEach(r=>map.removeLayer(r));
+  routeLayers=[];
 }
 
-/* ------------ ORS ROUTING (BEARER) ---------- */
-async function requestORS(start, end) {
-  const response = await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson", {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + apiKey,
-      "Content-Type": "application/json"
+/* ORS ROUTING */
+async function requestORS(a,b){
+  const r = await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson",{
+    method:"POST",
+    headers:{
+      "Authorization":"Bearer "+apiKey,
+      "Content-Type":"application/json"
     },
-    body: JSON.stringify({
-      coordinates: [
-        [start[1], start[0]],
-        [end[1], end[0]]
-      ]
-    })
+    body:JSON.stringify({coordinates:[[a[1],a[0]],[b[1],b[0]]]})
   });
 
-  if (!response.ok) {
-    const msg = await response.text();
-    throw new Error("ORS error " + response.status + ": " + msg);
-  }
-
-  return response.json();
+  if(!r.ok) return null;
+  return r.json();
 }
 
-/* ------------ ADD STOP ROW ------------------- */
-document.getElementById("addStopBtn").addEventListener("click", () => {
-  const row = document.createElement("div");
-  row.className = "stop-row";
-
-  row.innerHTML = `
+/* ADD STOP */
+document.getElementById("addStopBtn").addEventListener("click",()=>{
+  const row=document.createElement("div");
+  row.className="stop-row";
+  row.innerHTML=`
     <input type="text" class="address-input" placeholder="Address or postcode">
     <input type="text" class="label" placeholder="Label">
     <input type="color" class="boxColor" value="#2e8b57">
     <input type="color" class="textColor" value="#ffffff">
     <button class="removeStop">✖</button>
   `;
-
-  row.querySelector(".removeStop").addEventListener("click", () => row.remove());
+  row.querySelector(".removeStop").addEventListener("click",()=>row.remove());
   document.getElementById("stopContainer").appendChild(row);
-
   attachAutocomplete(row.querySelector(".address-input"));
 });
 
-/* ------------ MAIN ROUTE BUTTON --------------- */
-document.getElementById("routeBtn").addEventListener("click", async () => {
-  try {
-    clearMap();
+/* ROUTE BUTTON */
+document.getElementById("routeBtn").addEventListener("click",async()=>{
+  clearMap();
 
-    const rows = [...document.querySelectorAll(".stop-row")];
-    const coords = [];
-    const labels = [];
-    const boxColors = [];
-    const textColors = [];
+  const rows=[...document.querySelectorAll(".stop-row")];
+  const coords=[];
+  const labels=[];
+  const boxColors=[];
+  const textColors=[];
 
-    for (let row of rows) {
-      const input = row.querySelector(".address-input");
-      const typed = input.value.trim();
+  for(let row of rows){
+    const input=row.querySelector(".address-input");
+    if(!input) continue;
 
-      if (!typed) {
-        alert("Please enter an address for every stop.");
-        return;
-      }
+    const typed=input.value.trim();
+    if(!typed) continue;   /* ignore empty rows */
 
-      let place = placeStore.get(input);
+    let place = placeStore.get(input);
+    let latLng = null;
 
-      let latLng;
-
-      if (place && place.geometry) {
-        latLng = [
-          place.geometry.location.lat(),
-          place.geometry.location.lng()
-        ];
-      } else {
-        latLng = await geocodeText(typed);
-      }
-
-      coords.push(latLng);
-
-      labels.push(row.querySelector(".label")?.value || "Stop");
-      boxColors.push(row.querySelector(".boxColor")?.value || "#2e8b57");
-      textColors.push(row.querySelector(".textColor")?.value || "#ffffff");
+    if(place?.geometry){
+      latLng=[
+        place.geometry.location.lat(),
+        place.geometry.location.lng()
+      ];
+    } else {
+      latLng = await geocodeText(typed);
     }
 
-    /* DRAW MARKERS */
-    const font = document.getElementById("labelFont").value;
-    const size = document.getElementById("labelFontSize").value;
+    if(!latLng) continue;  /* ignore rows that fail */
 
-    coords.forEach((c, i) => {
-      const ic =
-        i === 0 ? iconGreen :
-        i === coords.length - 1 ? iconRed :
-        iconBlue;
+    coords.push(latLng);
 
-      L.marker(c, { icon: ic }).addTo(markerGroup);
+    labels.push(row.querySelector(".label")?.value || "Stop");
+    boxColors.push(row.querySelector(".boxColor")?.value || "#2e8b57");
+    textColors.push(row.querySelector(".textColor")?.value || "#ffffff");
+  }
 
-      L.marker(c, {
-        icon: L.divIcon({
-          html: `<div class="label-box"
-                  style="background:${boxColors[i]};
-                         color:${textColors[i]};
-                         font-family:${font};
-                         font-size:${size};">
-                 ${labels[i]}
-                 </div>`,
-          className:"",
-          iconSize:[0,0],
-          iconAnchor:[40,30]
-        }),
-        interactive:false
-      }).addTo(markerGroup);
-    });
+  if(coords.length < 2){
+    alert("Not enough valid stops to draw a route.");
+    return;
+  }
 
-    /* DRAW ROUTE SEGMENTS */
-    for (let i = 0; i < coords.length - 1; i++) {
-      const r = await requestORS(coords[i], coords[i + 1]);
-      const line = r.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+  /* DRAW MARKERS */
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
 
-      const seg = L.polyline(line, {
-        color: boxColors[i],
-        weight: 6
-      }).addTo(map);
+  coords.forEach((c,i)=>{
+    const ic=i===0?iconGreen:(i===coords.length-1?iconRed:iconBlue);
+    L.marker(c,{icon:ic}).addTo(markerGroup);
 
-      routeLayers.push(seg);
-    }
+    L.marker(c,{
+      icon:L.divIcon({
+        html:`<div class="label-box"
+          style="background:${boxColors[i]};
+                 color:${textColors[i]};
+                 font-family:${font};
+                 font-size:${size};">
+          ${labels[i]}
+        </div>`,
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[40,30]
+      }),
+      interactive:false
+    }).addTo(markerGroup);
+  });
 
-    /* FIT MAP */
-    let bounds = L.latLngBounds();
-    routeLayers.forEach(r => bounds.extend(r.getBounds()));
-    map.fitBounds(bounds, { padding:[40,40] });
+  /* ROUTE SEGMENTS */
+  for(let i=0;i<coords.length-1;i++){
+    const data=await requestORS(coords[i],coords[i+1]);
+    if(!data) continue;
 
-  } catch (err) {
-    alert("Error: " + err.message);
-    console.error(err);
+    const line=data.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+    const seg=L.polyline(line,{color:boxColors[i],weight:6}).addTo(map);
+    routeLayers.push(seg);
+  }
+
+  if(routeLayers.length){
+    let bounds=L.latLngBounds();
+    routeLayers.forEach(r=>bounds.extend(r.getBounds()));
+    map.fitBounds(bounds,{padding:[40,40]});
   }
 });
 </script>
 
-<!-- GOOGLE PLACES API -->
 <script async
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"
-  onload="document.querySelectorAll('.address-input').forEach(i => attachAutocomplete(i));">
+  onload="document.querySelectorAll('.address-input').forEach(i=>attachAutocomplete(i));">
 </script>
 
 </body>
