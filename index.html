@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Multi-Stop Route Planner</title>
+  <title>Multi-Stop Route Planner (Google Routing)</title>
 
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
@@ -39,8 +40,8 @@
     .stop-row input[type=text] {
       padding: 6px;
       width: 150px;
-      border: 1px solid #aaa;
       border-radius: 4px;
+      border: 1px solid #aaa;
     }
 
     .stop-row input[type=color] {
@@ -81,11 +82,11 @@
       transform: translateY(-12px);
     }
   </style>
-
 </head>
+
 <body>
 
-<header><h2>Multi-Stop Route Planner</h2></header>
+<header><h2>Multi-Stop Route Planner (Google Routing)</h2></header>
 
 <div class="controls">
   <div id="stopContainer">
@@ -126,16 +127,17 @@
 <div id="map"></div>
 
 <script>
-const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjE2ZGM5M2E5M2M0YjRiM2ZiNTg2YmJhZWUxNDc0ODQ0IiwiaCI6Im11cm11cjY0In0=";
+/* ---------------- CONFIG ------------------- */
+const GOOGLE_API_KEY = "AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M";
 
-/* MAP */
+/* --------------- MAP SETUP ----------------- */
 const map = L.map("map").setView([52.5, -1.5], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
 let markerGroup = L.layerGroup().addTo(map);
 let routeLayers = [];
 
-/* ICONS */
+/* --------------- ICONS --------------------- */
 function icon(url) {
   return L.icon({
     iconUrl: url,
@@ -148,60 +150,121 @@ const iconGreen = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-
 const iconRed   = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png");
 const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png");
 
-/* GOOGLE AUTOCOMPLETE */
-const placeStore = new Map();
+/* --------------- GOOGLE AUTOCOMPLETE ---------------- */
+const placeStore = new Map(); // input -> place
 
 function attachAutocomplete(input){
   if(!window.google || !google.maps.places) return;
 
-  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+  const ac = new google.maps.places.Autocomplete(input,{ fields:["geometry"] });
   google.maps.event.addListener(ac,"place_changed",()=>{
     placeStore.set(input, ac.getPlace());
   });
 }
 
-/* GOOGLE GEOCODE FALLBACK */
+/* --------------- GOOGLE GEOCODE FALLBACK ------------- */
 async function geocodeText(q){
-  const url=
-   `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M`;
+  const url =
+   `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${GOOGLE_API_KEY}`;
 
-  const r=await fetch(url);
-  const d=await r.json();
+  const r = await fetch(url);
+  const d = await r.json();
   if(!d.results?.length) return null;
 
-  return [
-    d.results[0].geometry.location.lat,
-    d.results[0].geometry.location.lng
-  ];
+  const loc = d.results[0].geometry.location;
+  return [loc.lat, loc.lng];
 }
 
-/* CLEAR MAP */
+/* --------------- GOOGLE ROUTES API (NO TRAFFIC) ------ */
+/* Returns encoded polyline string or null */
+async function requestGoogleRoute(start, end) {
+  const url = "https://routes.googleapis.com/directions/v2:computeRoutes";
+
+  const body = {
+    origin: {
+      location: {
+        latLng: {
+          latitude: start[0],
+          longitude: start[1]
+        }
+      }
+    },
+    destination: {
+      location: {
+        latLng: {
+          latitude: end[0],
+          longitude: end[1]
+        }
+      }
+    },
+    travelMode: "DRIVE",
+    routingPreference: "TRAFFIC_UNAWARE"
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_API_KEY,
+      "X-Goog-FieldMask": "routes.polyline.encodedPolyline"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    console.error("Google Routes error:", res.status, await res.text());
+    return null;
+  }
+
+  const data = await res.json();
+  if (!data.routes || !data.routes.length || !data.routes[0].polyline) return null;
+
+  return data.routes[0].polyline.encodedPolyline;
+}
+
+/* --------------- POLYLINE DECODER (Google format) ---- */
+/* Decodes encoded polyline -> array of [lat,lng] */
+function decodePolyline(str) {
+  let index = 0, lat = 0, lng = 0, coords = [];
+  const len = str.length;
+
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += dlng;
+
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+/* --------------- CLEAR MAP --------------------------- */
 function clearMap(){
   markerGroup.clearLayers();
   routeLayers.forEach(r=>map.removeLayer(r));
   routeLayers=[];
 }
 
-/* ORS ROUTING */
-async function requestORS(a,b){
-  const r = await fetch("https://api.openrouteservice.org/v2/directions/driving-car/geojson",{
-    method:"POST",
-    headers:{
-      "Authorization":"Bearer "+apiKey,
-      "Content-Type":"application/json"
-    },
-    body:JSON.stringify({coordinates:[[a[1],a[0]],[b[1],b[0]]]})
-  });
-
-  if(!r.ok) return null;
-  return r.json();
-}
-
-/* ADD STOP */
+/* --------------- ADD STOP ROW ------------------------ */
 document.getElementById("addStopBtn").addEventListener("click",()=>{
-  const row=document.createElement("div");
+  const row = document.createElement("div");
   row.className="stop-row";
-  row.innerHTML=`
+  row.innerHTML = `
     <input type="text" class="address-input" placeholder="Address or postcode">
     <input type="text" class="label" placeholder="Label">
     <input type="color" class="boxColor" value="#2e8b57">
@@ -213,92 +276,104 @@ document.getElementById("addStopBtn").addEventListener("click",()=>{
   attachAutocomplete(row.querySelector(".address-input"));
 });
 
-/* ROUTE BUTTON */
-document.getElementById("routeBtn").addEventListener("click",async()=>{
-  clearMap();
+/* --------------- ROUTE BUTTON ------------------------ */
+document.getElementById("routeBtn").addEventListener("click", async () => {
+  try {
+    clearMap();
 
-  const rows=[...document.querySelectorAll(".stop-row")];
-  const coords=[];
-  const labels=[];
-  const boxColors=[];
-  const textColors=[];
+    const rows = [...document.querySelectorAll(".stop-row")];
+    const coords = [];
+    const labels = [];
+    const boxColors = [];
+    const textColors = [];
 
-  for(let row of rows){
-    const input=row.querySelector(".address-input");
-    if(!input) continue;
+    for (let row of rows) {
+      const input = row.querySelector(".address-input");
+      if (!input) continue;
 
-    const typed=input.value.trim();
-    if(!typed) continue;   /* ignore empty rows */
+      const typed = input.value.trim();
+      if (!typed) continue; // ignore empty rows
 
-    let place = placeStore.get(input);
-    let latLng = null;
+      let place = placeStore.get(input);
+      let latLng = null;
 
-    if(place?.geometry){
-      latLng=[
-        place.geometry.location.lat(),
-        place.geometry.location.lng()
-      ];
-    } else {
-      latLng = await geocodeText(typed);
+      if (place && place.geometry && place.geometry.location) {
+        latLng = [
+          place.geometry.location.lat(),
+          place.geometry.location.lng()
+        ];
+      } else {
+        latLng = await geocodeText(typed);
+      }
+
+      if (!latLng) continue; // skip bad rows
+
+      coords.push(latLng);
+
+      labels.push(row.querySelector(".label")?.value || "Stop");
+      boxColors.push(row.querySelector(".boxColor")?.value || "#2e8b57");
+      textColors.push(row.querySelector(".textColor")?.value || "#ffffff");
     }
 
-    if(!latLng) continue;  /* ignore rows that fail */
+    if (coords.length < 2) {
+      alert("Not enough valid stops to draw a route.");
+      return;
+    }
 
-    coords.push(latLng);
+    /* DRAW MARKERS + LABELS */
+    const font = document.getElementById("labelFont").value;
+    const size = document.getElementById("labelFontSize").value;
 
-    labels.push(row.querySelector(".label")?.value || "Stop");
-    boxColors.push(row.querySelector(".boxColor")?.value || "#2e8b57");
-    textColors.push(row.querySelector(".textColor")?.value || "#ffffff");
-  }
+    coords.forEach((c,i)=>{
+      const ic = i === 0 ? iconGreen : (i === coords.length-1 ? iconRed : iconBlue);
 
-  if(coords.length < 2){
-    alert("Not enough valid stops to draw a route.");
-    return;
-  }
+      L.marker(c,{icon:ic}).addTo(markerGroup);
 
-  /* DRAW MARKERS */
-  const font=document.getElementById("labelFont").value;
-  const size=document.getElementById("labelFontSize").value;
+      L.marker(c,{
+        icon: L.divIcon({
+          html: `<div class="label-box"
+                    style="background:${boxColors[i]};
+                           color:${textColors[i]};
+                           font-family:${font};
+                           font-size:${size};">
+                  ${labels[i]}
+                 </div>`,
+          className:"",
+          iconSize:[0,0],
+          iconAnchor:[40,30]
+        }),
+        interactive:false
+      }).addTo(markerGroup);
+    });
 
-  coords.forEach((c,i)=>{
-    const ic=i===0?iconGreen:(i===coords.length-1?iconRed:iconBlue);
-    L.marker(c,{icon:ic}).addTo(markerGroup);
+    /* DRAW ROUTE SEGMENTS WITH GOOGLE ROUTES */
+    for (let i = 0; i < coords.length - 1; i++) {
+      const encoded = await requestGoogleRoute(coords[i], coords[i+1]);
+      if (!encoded) continue;
 
-    L.marker(c,{
-      icon:L.divIcon({
-        html:`<div class="label-box"
-          style="background:${boxColors[i]};
-                 color:${textColors[i]};
-                 font-family:${font};
-                 font-size:${size};">
-          ${labels[i]}
-        </div>`,
-        className:"",
-        iconSize:[0,0],
-        iconAnchor:[40,30]
-      }),
-      interactive:false
-    }).addTo(markerGroup);
-  });
+      const line = decodePolyline(encoded); // [lat,lng] pairs
+      const seg = L.polyline(line, {
+        color: boxColors[i],
+        weight: 6
+      }).addTo(map);
 
-  /* ROUTE SEGMENTS */
-  for(let i=0;i<coords.length-1;i++){
-    const data=await requestORS(coords[i],coords[i+1]);
-    if(!data) continue;
+      routeLayers.push(seg);
+    }
 
-    const line=data.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-    const seg=L.polyline(line,{color:boxColors[i],weight:6}).addTo(map);
-    routeLayers.push(seg);
-  }
+    if (routeLayers.length) {
+      let bounds = L.latLngBounds();
+      routeLayers.forEach(r => bounds.extend(r.getBounds()));
+      map.fitBounds(bounds, { padding:[40,40] });
+    }
 
-  if(routeLayers.length){
-    let bounds=L.latLngBounds();
-    routeLayers.forEach(r=>bounds.extend(r.getBounds()));
-    map.fitBounds(bounds,{padding:[40,40]});
+  } catch (err) {
+    alert("Error: " + err.message);
+    console.error(err);
   }
 });
 </script>
 
+<!-- GOOGLE MAPS JS (Places only; routing is via REST above) -->
 <script async
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"
   onload="document.querySelectorAll('.address-input').forEach(i=>attachAutocomplete(i));">
