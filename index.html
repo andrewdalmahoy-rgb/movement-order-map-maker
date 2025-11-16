@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <!-- SortableJS for drag-to-reorder stops -->
+  <!-- SortableJS -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
   <style>
@@ -17,7 +17,6 @@
       margin: 0;
       padding: 0;
       height: 100%;
-      width: 100%;
       overflow: hidden;
       font-family: Arial, sans-serif;
     }
@@ -28,50 +27,34 @@
       padding:10px 16px;
       font-size: 20px;
       font-weight: 600;
-      box-sizing: border-box;
     }
 
     .layout {
       position:absolute;
-      top:48px; /* header height */
-      left:0;
-      right:0;
-      bottom:0;
-      overflow:hidden;
+      top:48px;
+      left:0; right:0; bottom:0;
     }
 
-    /* Map fills everything; sidebar overlays on top */
     #map {
       position:absolute;
       top:0; left:0; right:0; bottom:0;
       z-index:1;
     }
 
-    /* Sidebar overlay */
+    /* Sidebar */
     .sidebar {
       position:absolute;
-      top:0;
-      bottom:0;
-      left:0;
+      top:0; bottom:0; left:0;
       width:450px;
       background:#f4f5f7;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.2);
-      box-sizing:border-box;
+      box-shadow:2px 0 8px rgba(0,0,0,0.2);
       padding:12px;
       overflow-y:auto;
       z-index:900;
-      transition: transform 0.3s ease;
+      transition:transform 0.3s ease;
     }
+    .sidebar.hidden { transform:translateX(-100%); }
 
-    .sidebar.hidden {
-      transform: translateX(-100%);
-    }
-
-    h3 {
-      margin:8px 0;
-    }
-
-    /* Stop rows: multi-line layout */
     .stop-row {
       display:grid;
       grid-template-columns: 28px 1fr;
@@ -80,7 +63,7 @@
         ". label"
         ". colors"
         ". remove";
-      gap: 6px 10px;
+      gap:6px 10px;
       padding:10px;
       margin-bottom:10px;
       background:white;
@@ -89,31 +72,31 @@
     }
 
     .drag-handle {
-      grid-area: handle;
-      cursor: grab;
-      font-size: 20px;
-      user-select: none;
+      grid-area:handle;
+      cursor:grab;
+      font-size:20px;
+      user-select:none;
       padding-top:4px;
     }
 
     .address-input {
-      grid-area: address;
-      width:100%;
+      grid-area:address;
       padding:7px;
+      width:100%;
       border-radius:4px;
       border:1px solid #aaa;
     }
 
     .label-input {
-      grid-area: label;
-      width:100%;
+      grid-area:label;
       padding:7px;
+      width:100%;
       border-radius:4px;
       border:1px solid #aaa;
     }
 
     .color-row {
-      grid-area: colors;
+      grid-area:colors;
       display:flex;
       gap:10px;
       align-items:center;
@@ -130,29 +113,27 @@
     }
 
     .removeStop {
-      grid-area: remove;
+      grid-area:remove;
       background:#b22222;
       color:white;
       border:none;
       padding:6px 10px;
       border-radius:4px;
       cursor:pointer;
-      justify-self:flex-start;
     }
 
     button.full-btn, select.full-btn {
       width:100%;
       padding:8px 10px;
-      margin-top:6px;
       border:none;
       border-radius:4px;
+      margin-top:6px;
       background:#0b6fa6;
       color:white;
       font-size:15px;
       cursor:pointer;
       box-sizing:border-box;
     }
-
     select.full-btn {
       background:white;
       color:#333;
@@ -164,7 +145,6 @@
       margin-top:6px;
     }
 
-    /* Label on map – fixed shape */
     .label-box {
       display:inline-block;
       padding:6px 10px;
@@ -176,30 +156,10 @@
       pointer-events:none;
     }
 
-    /* Floating round panel toggle (bottom-left) */
+    /* Floating toggle button */
     .panel-toggle {
       position:absolute;
       bottom:16px;
-      left:16px;
-      width:48px;
-      height:48px;
-      border-radius:50%;
-      border:1px solid #ccc;      /* white with border */
-      background:white;
-      color:#333;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:24px;
-      cursor:pointer;
-      box-shadow:0 2px 8px rgba(0,0,0,0.25);
-      z-index:1000;
-    }
-
-    /* Floating free-marker button (above panel toggle) */
-    .free-marker-btn {
-      position:absolute;
-      bottom:78px; /* above panel-toggle */
       left:16px;
       width:48px;
       height:48px;
@@ -216,61 +176,47 @@
       z-index:1000;
     }
 
-    /* Popup editor styling (P2) */
-    .marker-editor {
-      font-family: Arial, sans-serif;
-      font-size: 13px;
-      padding: 4px;
+    /* Free marker button */
+    .free-marker-btn {
+      position:absolute;
+      bottom:78px;
+      left:16px;
+      width:48px;
+      height:48px;
+      border-radius:50%;
+      border:1px solid #ccc;
+      background:white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      z-index:1000;
     }
-    .marker-editor h4 {
-      margin: 0 0 6px 0;
-      font-size: 14px;
-      font-weight: bold;
-      color: #333;
+
+    /* Popup editor (P2) */
+    .marker-editor { font-size:13px; padding:4px; }
+    .marker-editor h4 { margin:0 0 6px; font-size:14px; }
+    .marker-editor label { display:block; margin-top:4px; font-weight:bold; }
+    .marker-editor input[type=text] {
+      width:100%; padding:4px 6px;
+      border-radius:4px; border:1px solid #aaa;
     }
-    .marker-editor label {
-      display:block;
-      margin-top:4px;
-      margin-bottom:2px;
-    }
-    .marker-editor input[type="text"] {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 4px 6px;
-      border-radius: 4px;
-      border: 1px solid #aaa;
-      font-size: 13px;
-    }
-    .marker-editor input[type="color"] {
-      width: 40px;
-      height: 24px;
-      border: none;
-      border-radius: 4px;
-      margin-left:4px;
-      vertical-align: middle;
-      cursor: pointer;
+    .marker-editor input[type=color] {
+      width:40px; height:24px; border:none; border-radius:4px;
+      margin-left:4px; cursor:pointer;
     }
     .marker-editor-buttons {
-      display:flex;
-      justify-content: space-between;
-      margin-top:8px;
-      gap:6px;
-    }
-    .marker-editor button {
-      flex:1;
-      padding:5px 6px;
-      border:none;
-      border-radius:4px;
-      cursor:pointer;
-      font-size:13px;
+      display:flex; gap:6px; margin-top:8px;
     }
     .marker-editor-save {
-      background:#0b6fa6;
-      color:white;
+      flex:1; background:#0b6fa6; color:white; border:none;
+      padding:5px; border-radius:4px; cursor:pointer;
     }
     .marker-editor-delete {
-      background:#b22222;
-      color:white;
+      flex:1; background:#b22222; color:white; border:none;
+      padding:5px; border-radius:4px; cursor:pointer;
     }
   </style>
 </head>
@@ -281,40 +227,33 @@
 <div class="layout">
   <div id="map"></div>
 
-  <!-- Floating buttons -->
-  <button id="panelToggle" class="panel-toggle">≡</button>
-  <button id="addFreeMarkerBtn" class="free-marker-btn" title="Drop labelled marker">📍</button>
+  <button id="panelToggle" class="panel-toggle">✕</button>
+  <button id="addFreeMarkerBtn" class="free-marker-btn">📍</button>
 
-  <!-- Sidebar overlay -->
+  <!-- Sidebar -->
   <div id="sidebar" class="sidebar">
     <h3>Stops</h3>
     <div id="stopContainer"></div>
     <button id="addStopBtn" class="full-btn">➕ Add Stop</button>
 
-    <h3>Label Font</h3>
+    <h3>Font</h3>
     <select id="labelFont" class="full-btn">
-      <option value="Arial" selected>Arial</option>
-      <option value="Helvetica">Helvetica</option>
-      <option value="Verdana">Verdana</option>
-      <option value="Tahoma">Tahoma</option>
-      <option value="Georgia">Georgia</option>
-      <option value="Times New Roman">Times New Roman</option>
-      <option value="Courier New">Courier New</option>
+      <option>Arial</option><option>Helvetica</option>
+      <option>Verdana</option><option>Georgia</option>
+      <option>Times New Roman</option><option>Courier New</option>
     </select>
 
     <h3>Font Size</h3>
     <select id="labelFontSize" class="full-btn">
-      <option value="12px">12px</option>
-      <option value="14px" selected>14px</option>
-      <option value="16px">16px</option>
-      <option value="18px">18px</option>
-      <option value="20px">20px</option>
+      <option>12px</option>
+      <option selected>14px</option>
+      <option>16px</option><option>18px</option><option>20px</option>
     </select>
 
     <h3>Travel Mode</h3>
     <div class="mode-row">
-      <label><input type="radio" name="mode" value="DRIVE" checked> Driving</label><br>
-      <label><input type="radio" name="mode" value="WALK"> Walking</label>
+      <label><input name="mode" type="radio" value="DRIVE" checked> Driving</label><br>
+      <label><input name="mode" type="radio" value="WALK"> Walking</label>
     </div>
 
     <button id="routeBtn" class="full-btn">Show Route</button>
@@ -323,331 +262,282 @@
   </div>
 </div>
 
-<!-- Google Maps JS (Places + Routes) -->
+<!-- Google Places & Routes -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
 
 <script>
-/* ========= MAP SETUP ========= */
+/* ======================== MAP ======================== */
 const map = L.map("map").setView([52.5, -1.5], 6);
 
-const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom:19,
-  attribution:"&copy; OpenStreetMap contributors"
-}).addTo(map);
+const streets = L.tileLayer(
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom:19 }
+).addTo(map);
 
 const esriSat = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom:19,
-    attribution:"Tiles &copy; Esri"
-  }
+ "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+ { maxZoom:19 }
 );
 
 let satelliteOn = false;
 
-/* Separate layers for route stuff vs free markers */
-const routeMarkerLayer = L.layerGroup().addTo(map); // route markers + labels
-const routeLayer       = L.layerGroup().addTo(map); // route polylines
-const freeMarkerLayer  = L.layerGroup().addTo(map); // free markers + labels
+const routeLayer = L.layerGroup().addTo(map);
+const routeMarkerLayer = L.layerGroup().addTo(map);
+const freeMarkerLayer = L.layerGroup().addTo(map);
 
-/* ========= SIDEBAR TOGGLE ========= */
+/* ======================== SIDEBAR ======================== */
 const sidebar = document.getElementById("sidebar");
 const panelToggle = document.getElementById("panelToggle");
 let panelOpen = true;
 
-function updatePanelState() {
-  if (panelOpen) {
+function updatePanelState(){
+  if(panelOpen){
     sidebar.classList.remove("hidden");
-    panelToggle.textContent = "✕";
+    panelToggle.textContent="✕";
   } else {
     sidebar.classList.add("hidden");
-    panelToggle.textContent = "≡";
+    panelToggle.textContent="≡";
   }
+  setTimeout(()=>map.invalidateSize(),200);
 }
-
-panelToggle.addEventListener("click", () => {
-  panelOpen = !panelOpen;
+panelToggle.addEventListener("click",()=>{
+  panelOpen=!panelOpen;
   updatePanelState();
-  setTimeout(() => map.invalidateSize(true), 200);
 });
-
 updatePanelState();
 
-/* ========= SATELLITE TOGGLE ========= */
-document.getElementById("satToggle").addEventListener("click", () => {
-  satelliteOn = !satelliteOn;
-  if (satelliteOn) {
-    map.removeLayer(streets);
-    esriSat.addTo(map);
-  } else {
-    map.removeLayer(esriSat);
-    streets.addTo(map);
-  }
-  setTimeout(() => map.invalidateSize(true), 150);
+/* ======================== SATELLITE ======================== */
+document.getElementById("satToggle").addEventListener("click",()=>{
+  satelliteOn=!satelliteOn;
+  if(satelliteOn){ map.removeLayer(streets); esriSat.addTo(map); }
+  else { map.removeLayer(esriSat); streets.addTo(map); }
+  setTimeout(()=>map.invalidateSize(),150);
 });
 
-/* ========= AUTOCOMPLETE STORAGE ========= */
+/* ======================== AUTOCOMPLETE ======================== */
 const acMap = new Map();
-
-function attachAutocomplete(input) {
-  const ac = new google.maps.places.Autocomplete(input, {
-    fields:["geometry","formatted_address"]
-  });
-  acMap.set(input, ac);
+function attachAutocomplete(input){
+  const ac=new google.maps.places.Autocomplete(input,{fields:["geometry","formatted_address"]});
+  acMap.set(input,ac);
 }
 
-/* ========= STOP ROW CREATION ========= */
-const stopContainer = document.getElementById("stopContainer");
+/* ======================== STOPS ======================== */
+const stopContainer=document.getElementById("stopContainer");
 
-function addStopRow(defaultLabel = "") {
-  const row = document.createElement("div");
-  row.className = "stop-row";
+function addStopRow(defaultLabel=""){
+  const row=document.createElement("div");
+  row.className="stop-row";
 
-  row.innerHTML = `
+  row.innerHTML=`
     <div class="drag-handle">☰</div>
-    <input type="text" class="address-input" placeholder="Address or postcode" />
-    <input type="text" class="label-input" placeholder="${defaultLabel}" />
+    <input class="address-input" placeholder="Address or postcode" />
+    <input class="label-input" placeholder="${defaultLabel}" />
     <div class="color-row">
       <label>Box:</label>
-      <input type="color" class="color-input boxColor" value="#2e8b57" />
+      <input type="color" class="color-input boxColor" value="#2e8b57"/>
       <label>Text:</label>
-      <input type="color" class="color-input textColor" value="#ffffff" />
+      <input type="color" class="color-input textColor" value="#ffffff"/>
     </div>
     <button class="removeStop">✖ Remove</button>
   `;
 
-  row.querySelector(".removeStop").addEventListener("click", () => row.remove());
+  row.querySelector(".removeStop").addEventListener("click",()=>row.remove());
   stopContainer.appendChild(row);
-
-  const input = row.querySelector(".address-input");
-  attachAutocomplete(input);
+  attachAutocomplete(row.querySelector(".address-input"));
 }
 
-/* Initial Start + End rows */
 addStopRow("Start");
 addStopRow("End");
 
-/* Make stop list sortable via handle */
-Sortable.create(stopContainer, {
-  handle: ".drag-handle",
-  animation: 150
-});
+Sortable.create(stopContainer,{handle:".drag-handle",animation:150});
 
-/* ========= POLYLINE DECODER ========= */
-function decodePolyline(encoded) {
-  const coords = [];
-  let index = 0, lat = 0, lng = 0;
+document.getElementById("addStopBtn").addEventListener("click",()=>addStopRow("Stop"));
 
-  while (index < encoded.length) {
-    let b, shift = 0, result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lat += dlat;
+/* ================= POLYLINE DECODER ================= */
+function decodePolyline(encoded){
+  let coords=[],lat=0,lng=0,index=0;
+  while(index<encoded.length){
+    let b,shift=0,result=0;
+    do{ b=encoded.charCodeAt(index++)-63; result|=(b&0x1f)<<shift; shift+=5; }while(b>=0x20);
+    const dlat=(result&1)?~(result>>1):(result>>1); lat+=dlat;
 
-    shift = 0;
-    result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lng += dlng;
+    shift=0; result=0;
+    do{ b=encoded.charCodeAt(index++)-63; result|=(b&0x1f)<<shift; shift+=5; }while(b>=0x20);
+    const dlng=(result&1)?~(result>>1):(result>>1); lng+=dlng;
 
-    coords.push([lat / 1e5, lng / 1e5]);
+    coords.push([lat/1e5,lng/1e5]);
   }
   return coords;
 }
 
-/* ========= GOOGLE ROUTES ========= */
-async function computeRoute(start, end, mode) {
-  const body = {
-    origin: { location: { latLng: { latitude:start[0], longitude:start[1] } } },
-    destination: { location: { latLng: { latitude:end[0], longitude:end[1] } } },
-    travelMode: mode  // "DRIVE" or "WALK"
+/* ================= MAKE COLOURED SVG MARKER ================= */
+function makeColoredMarker(color){
+  const svg=`
+    <svg width="32" height="48" viewBox="0 0 32 48" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 0
+               C7 0 0 7 0 16
+               C0 30 16 48 16 48
+               C16 48 32 30 32 16
+               C32 7 25 0 16 0Z"
+            fill="${color}"
+            stroke="white" stroke-width="2"/>
+      <circle cx="16" cy="16" r="6" fill="white"/>
+    </svg>`;
+  return L.icon({
+    iconUrl:"data:image/svg+xml;base64,"+btoa(svg),
+    iconSize:[32,48],
+    iconAnchor:[16,48]
+  });
+}
+
+/* ================= GOOGLE ROUTES ================= */
+async function computeRoute(start,end,mode){
+  const body={
+    origin:{location:{latLng:{latitude:start[0],longitude:start[1]}}},
+    destination:{location:{latLng:{latitude:end[0],longitude:end[1]}}},
+    travelMode:mode
   };
 
-  const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
-    method: "POST",
-    headers: {
+  const res=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
+    method:"POST",
+    headers:{
       "Content-Type":"application/json",
       "X-Goog-Api-Key":"AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
       "X-Goog-FieldMask":"routes.polyline.encodedPolyline"
     },
-    body: JSON.stringify(body)
+    body:JSON.stringify(body)
   });
 
-  const data = await res.json();
-  if (!data.routes || !data.routes[0] || !data.routes[0].polyline) return [];
+  const data=await res.json();
+  if(!data.routes) return [];
   return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
 
-/* ========= CLEAR / RECENTER ========= */
-function clearRouteAndMarkers() {
-  routeMarkerLayer.clearLayers();
+/* ================= DRAW ROUTE SEGMENTS ================= */
+async function drawRouteSegments(coords,boxColors,mode,fit){
   routeLayer.clearLayers();
-  // freeMarkerLayer is left intact
-}
-
-function recenterRoute() {
-  if (!routeLayer.getLayers().length) return;
-  let bounds = null;
-  routeLayer.eachLayer(l => {
-    if (!bounds) bounds = l.getBounds();
-    else bounds.extend(l.getBounds());
-  });
-  if (bounds) map.fitBounds(bounds, {padding:[40,40]});
-}
-
-document.getElementById("recenterBtn").addEventListener("click", recenterRoute);
-
-/* ========= DRAW ROUTE SEGMENTS ========= */
-async function drawRouteSegments(coords, boxColors, travelMode, doFit) {
-  routeLayer.clearLayers();
-
-  for (let i = 0; i < coords.length - 1; i++) {
-    const seg = await computeRoute(coords[i], coords[i+1], travelMode);
-    if (!seg.length) continue;
-
-    L.polyline(seg.map(p => [p[0],p[1]]), {
-      color: boxColors[i],
+  for(let i=0;i<coords.length-1;i++){
+    const seg=await computeRoute(coords[i],coords[i+1],mode);
+    if(!seg.length) continue;
+    L.polyline(seg.map(p=>[p[0],p[1]]),{
+      color:boxColors[i],
       weight:5,
-      dashArray: travelMode === "WALK" ? "6,10" : null
+      dashArray:mode==="WALK"?"6,10":null
     }).addTo(routeLayer);
   }
-
-  if (doFit) recenterRoute();
+  if(fit){
+    let b=null;
+    routeLayer.eachLayer(l=>{
+      if(!b) b=l.getBounds(); else b.extend(l.getBounds());
+    });
+    if(b) map.fitBounds(b,{padding:[40,40]});
+  }
 }
 
-/* ========= BUILD ROUTE ========= */
-document.getElementById("routeBtn").addEventListener("click", async () => {
-  try {
-    clearRouteAndMarkers();
+/* ================= CLEAR ROUTE ================= */
+function clearRoute(){
+  routeLayer.clearLayers();
+  routeMarkerLayer.clearLayers();
+}
 
-    const rows = [...document.querySelectorAll(".stop-row")];
-    const coords = [];
-    const labels = [];
-    const boxColors = [];
-    const textColors = [];
+/* ================= SHOW ROUTE ================= */
+document.getElementById("routeBtn").addEventListener("click",async()=>{
 
-    for (const row of rows) {
-      const input = row.querySelector(".address-input");
-      const ac = acMap.get(input);
-      const place = ac && ac.getPlace();
-      if (!place || !place.geometry) {
-        alert("Please select an address from the suggestions for every stop.");
-        return;
-      }
+  clearRoute();
 
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      coords.push([lat,lng]);
-
-      labels.push(row.querySelector(".label-input").value || "Stop");
-      boxColors.push(row.querySelector(".boxColor").value);
-      textColors.push(row.querySelector(".textColor").value);
-    }
-
-    if (coords.length < 2) {
-      alert("Need at least a start and end.");
+  const rows=[...document.querySelectorAll(".stop-row")];
+  const coords=[], labels=[], boxColors=[], textColors=[];
+  for(const r of rows){
+    const input=r.querySelector(".address-input");
+    const ac=acMap.get(input);
+    const place=ac&&ac.getPlace();
+    if(!place||!place.geometry){
+      alert("Select an address from suggestions for all stops.");
       return;
     }
+    coords.push([place.geometry.location.lat(),place.geometry.location.lng()]);
+    labels.push(r.querySelector(".label-input").value||"Stop");
+    boxColors.push(r.querySelector(".boxColor").value);
+    textColors.push(r.querySelector(".textColor").value);
+  }
 
-    const modeRadio = document.querySelector('input[name="mode"]:checked').value; // "DRIVE" or "WALK"
-    const travelMode = modeRadio === "WALK" ? "WALK" : "DRIVE";
-    const font = document.getElementById("labelFont").value;
-    const size = document.getElementById("labelFontSize").value;
+  if(coords.length<2){ alert("Need start and end."); return; }
 
-    const markers = [];
-    const labelMarkers = [];
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
+  const mode=document.querySelector('input[name="mode"]:checked').value;
 
-    coords.forEach((c, i) => {
-      const iconUrl =
-        i === 0
-          ? "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png"
-          : i === coords.length - 1
-          ? "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png"
-          : "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png";
+  /* Place markers + labels */
+  coords.forEach((c,i)=>{
+    const marker=L.marker(c,{
+      draggable:true,
+      icon: makeColoredMarker(boxColors[i])
+    }).addTo(routeMarkerLayer);
 
-      const marker = L.marker(c, {
-        icon: L.icon({
-          iconUrl,
-          shadowUrl:"https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-          iconSize:[25,41],
-          iconAnchor:[12,41]
-        }),
-        draggable:true
-      }).addTo(routeMarkerLayer);
+    const label=L.marker(c,{
+      icon:L.divIcon({
+        html:`<div class="label-box"
+                 style="background:${boxColors[i]}; color:${textColors[i]};
+                        font-family:${font}; font-size:${size};">
+                ${labels[i]}
+              </div>`,
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[0,-10]
+      }),
+      interactive:false
+    }).addTo(routeMarkerLayer);
 
-      const labelMarker = L.marker(c, {
-        icon: L.divIcon({
-          html: `<div class="label-box"
-                     style="background:${boxColors[i]};
-                            color:${textColors[i]};
-                            font-family:${font};
-                            font-size:${size};">
-                    ${labels[i]}
-                 </div>`,
-          className:"",
-          iconSize:[0,0],
-          iconAnchor:[0,-10]   // above marker
-        }),
-        interactive:false
-      }).addTo(routeMarkerLayer);
-
-      markers.push(marker);
-      labelMarkers.push(labelMarker);
-
-      marker.on("drag", e => {
-        labelMarker.setLatLng(e.latlng);
-        coords[i] = [e.latlng.lat, e.latlng.lng];
-      });
-
-      marker.on("dragend", async () => {
-        await drawRouteSegments(coords, boxColors, travelMode, false);
-      });
+    marker.on("drag",e=>{
+      label.setLatLng(e.latlng);
+      coords[i]=[e.latlng.lat,e.latlng.lng];
     });
 
-    await drawRouteSegments(coords, boxColors, travelMode, true);
+    marker.on("dragend",async()=>{
+      await drawRouteSegments(coords,boxColors,mode,false);
+    });
+  });
 
-  } catch (err) {
-    console.error(err);
-    alert("Error: " + err.message);
-  }
+  await drawRouteSegments(coords,boxColors,mode,true);
 });
 
-/* ========= ADD STOP BUTTON ========= */
-document.getElementById("addStopBtn").addEventListener("click", () => addStopRow("Stop"));
-
-/* ========= FREE-PLACE MARKERS (editable anytime) ========= */
-let dropMode = false;
-let freeMarkerIdCounter = 1;
-const freeMarkers = [];  // { id, marker, labelMarker, text, boxColor, textColor }
-
-document.getElementById("addFreeMarkerBtn").addEventListener("click", () => {
-  dropMode = true;
-  alert("Click on the map to drop a labelled marker.");
+/* ================= RECENTER ================= */
+document.getElementById("recenterBtn").addEventListener("click",()=>{
+  let b=null;
+  routeLayer.eachLayer(l=>{
+    if(!b) b=l.getBounds(); else b.extend(l.getBounds());
+  });
+  if(b) map.fitBounds(b,{padding:[40,40]});
 });
 
-function createFreeMarker(latlng, text, boxColor, textColor) {
-  const font = document.getElementById("labelFont").value;
-  const size = document.getElementById("labelFontSize").value;
+/* ================= FREE-PLACE MARKERS ================= */
+let dropMode=false;
+document.getElementById("addFreeMarkerBtn").addEventListener("click",()=>{
+  dropMode=true;
+  alert("Click the map to place a custom marker.");
+});
 
-  const id = freeMarkerIdCounter++;
-  const marker = L.marker(latlng, { draggable:true }).addTo(freeMarkerLayer);
+let freeMarkerId=1;
+const freeMarkers=[];
 
-  const labelMarker = L.marker(latlng, {
-    icon: L.divIcon({
-      html: `<div class="label-box"
-                 style="background:${boxColor};
-                        color:${textColor};
-                        font-family:${font};
-                        font-size:${size};">
-                ${text}
-             </div>`,
+function createFreeMarker(latlng,text,boxColor,textColor){
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
+
+  const id=freeMarkerId++;
+
+  const marker=L.marker(latlng,{
+    draggable:true,
+    icon: makeColoredMarker(boxColor)
+  }).addTo(freeMarkerLayer);
+
+  const labelMarker=L.marker(latlng,{
+    icon:L.divIcon({
+      html:`<div class="label-box"
+               style="background:${boxColor}; color:${textColor};
+                      font-family:${font}; font-size:${size};">
+              ${text}
+            </div>`,
       className:"",
       iconSize:[0,0],
       iconAnchor:[0,-10]
@@ -655,100 +545,94 @@ function createFreeMarker(latlng, text, boxColor, textColor) {
     interactive:false
   }).addTo(freeMarkerLayer);
 
-  const fm = { id, marker, labelMarker, text, boxColor, textColor };
+  const fm={id,marker,labelMarker,text,boxColor,textColor};
   freeMarkers.push(fm);
 
-  // Keep label following during drag
-  marker.on("drag", e => {
-    labelMarker.setLatLng(e.latlng);
-  });
-
-  // Always open editor on click
-  marker.on("click", () => openFreeMarkerEditor(fm));
+  marker.on("drag",e=>labelMarker.setLatLng(e.latlng));
+  marker.on("click",()=>openFreeMarkerEditor(fm));
 }
 
-function openFreeMarkerEditor(fm) {
-  const html = `
-    <div class="marker-editor">
-      <h4>Edit Marker</h4>
-      <label>Label text:</label>
-      <input type="text" id="fm-label-${fm.id}" value="${fm.text}">
-      <label>Box colour:
-        <input type="color" id="fm-box-${fm.id}" value="${fm.boxColor}">
-      </label>
-      <label>Text colour:
-        <input type="color" id="fm-text-${fm.id}" value="${fm.textColor}">
-      </label>
-      <div class="marker-editor-buttons">
-        <button class="marker-editor-save" id="fm-save-${fm.id}">Save</button>
-        <button class="marker-editor-delete" id="fm-del-${fm.id}">Delete</button>
-      </div>
-    </div>
+function openFreeMarkerEditor(fm){
+  const html=`
+   <div class="marker-editor">
+     <h4>Edit Marker</h4>
+
+     <label>Label:</label>
+     <input id="fm-label-${fm.id}" value="${fm.text}" />
+
+     <label>Box:
+       <input type="color" id="fm-box-${fm.id}" value="${fm.boxColor}">
+     </label>
+
+     <label>Text:
+       <input type="color" id="fm-text-${fm.id}" value="${fm.textColor}">
+     </label>
+
+     <div class="marker-editor-buttons">
+       <button class="marker-editor-save" id="fm-save-${fm.id}">Save</button>
+       <button class="marker-editor-delete" id="fm-del-${fm.id}">Delete</button>
+     </div>
+   </div>
   `;
 
-  const popup = L.popup()
+  const popup=L.popup()
     .setLatLng(fm.marker.getLatLng())
     .setContent(html)
     .openOn(map);
 
-  setTimeout(() => {
-    const labelInput = document.getElementById(`fm-label-${fm.id}`);
-    const boxInput   = document.getElementById(`fm-box-${fm.id}`);
-    const textInput  = document.getElementById(`fm-text-${fm.id}`);
-    const saveBtn    = document.getElementById(`fm-save-${fm.id}`);
-    const delBtn     = document.getElementById(`fm-del-${fm.id}`);
+  setTimeout(()=>{
+    const labelIn=document.getElementById(`fm-label-${fm.id}`);
+    const boxIn=document.getElementById(`fm-box-${fm.id}`);
+    const textIn=document.getElementById(`fm-text-${fm.id}`);
 
-    if (!labelInput || !saveBtn || !delBtn) return;
+    document.getElementById(`fm-save-${fm.id}`).onclick=()=>{
+      fm.text=labelIn.value||"Point";
+      fm.boxColor=boxIn.value;
+      fm.textColor=textIn.value;
 
-    /* SAVE */
-    saveBtn.onclick = () => {
-      fm.text = labelInput.value || "Point";
-      fm.boxColor = boxInput.value || fm.boxColor;
-      fm.textColor = textInput.value || fm.textColor;
-
-      const font = document.getElementById("labelFont").value;
-      const size = document.getElementById("labelFontSize").value;
+      const font=document.getElementById("labelFont").value;
+      const size=document.getElementById("labelFontSize").value;
 
       fm.labelMarker.setIcon(L.divIcon({
-        html: `<div class="label-box"
-                   style="background:${fm.boxColor};
-                          color:${fm.textColor};
-                          font-family:${font};
-                          font-size:${size};">
-                  ${fm.text}
-               </div>`,
+        html:`<div class="label-box"
+                 style="background:${fm.boxColor}; color:${fm.textColor};
+                        font-family:${font}; font-size:${size};">
+                ${fm.text}
+              </div>`,
         className:"",
         iconSize:[0,0],
         iconAnchor:[0,-10]
       }));
 
+      fm.marker.setIcon(makeColoredMarker(fm.boxColor));
+
       map.closePopup();
     };
 
-    /* DELETE */
-    delBtn.onclick = () => {
+    document.getElementById(`fm-del-${fm.id}`).onclick=()=>{
       freeMarkerLayer.removeLayer(fm.marker);
       freeMarkerLayer.removeLayer(fm.labelMarker);
-      const idx = freeMarkers.findIndex(x => x.id === fm.id);
-      if (idx !== -1) freeMarkers.splice(idx, 1);
+      const idx=freeMarkers.findIndex(x=>x.id===fm.id);
+      freeMarkers.splice(idx,1);
       map.closePopup();
     };
 
-  }, 20);
+  },20);
 }
 
-map.on("click", e => {
-  if (!dropMode) return;
-  dropMode = false;
+map.on("click",e=>{
+  if(!dropMode) return;
+  dropMode=false;
 
-  const defaultLabel = "Point";
-  const text = prompt("Marker label text:", defaultLabel);
-  if (text === null) return;  // cancelled
+  const t=prompt("Marker label text:","Point");
+  if(t===null) return;
 
-  const boxColor = "#2e8b57";
-  const textColor = "#ffffff";
-
-  createFreeMarker(e.latlng, text || defaultLabel, boxColor, textColor);
+  createFreeMarker(
+    e.latlng,
+    t||"Point",
+    "#2e8b57",
+    "#ffffff"
+  );
 });
 </script>
 
