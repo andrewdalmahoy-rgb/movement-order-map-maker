@@ -344,8 +344,10 @@ const esriSat = L.tileLayer(
 
 let satelliteOn = false;
 
-const markerLayer = L.layerGroup().addTo(map); // route markers + labels + free markers
-const routeLayer  = L.layerGroup().addTo(map);
+/* Separate layers for route stuff vs free markers */
+const routeMarkerLayer = L.layerGroup().addTo(map); // route markers + labels
+const routeLayer       = L.layerGroup().addTo(map); // route polylines
+const freeMarkerLayer  = L.layerGroup().addTo(map); // free markers + labels
 
 /* ========= SIDEBAR TOGGLE ========= */
 const sidebar = document.getElementById("sidebar");
@@ -485,8 +487,9 @@ async function computeRoute(start, end, mode) {
 
 /* ========= CLEAR / RECENTER ========= */
 function clearRouteAndMarkers() {
-  markerLayer.clearLayers();
+  routeMarkerLayer.clearLayers();
   routeLayer.clearLayers();
+  // freeMarkerLayer is left intact
 }
 
 function recenterRoute() {
@@ -577,7 +580,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
           iconAnchor:[12,41]
         }),
         draggable:true
-      }).addTo(markerLayer);
+      }).addTo(routeMarkerLayer);
 
       const labelMarker = L.marker(c, {
         icon: L.divIcon({
@@ -593,7 +596,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
           iconAnchor:[0,-10]   // above marker
         }),
         interactive:false
-      }).addTo(markerLayer);
+      }).addTo(routeMarkerLayer);
 
       markers.push(marker);
       labelMarkers.push(labelMarker);
@@ -619,7 +622,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
 /* ========= ADD STOP BUTTON ========= */
 document.getElementById("addStopBtn").addEventListener("click", () => addStopRow("Stop"));
 
-/* ========= FREE-PLACE MARKERS (with editable popup) ========= */
+/* ========= FREE-PLACE MARKERS (editable anytime) ========= */
 let dropMode = false;
 let freeMarkerIdCounter = 1;
 const freeMarkers = [];  // { id, marker, labelMarker, text, boxColor, textColor }
@@ -634,7 +637,7 @@ function createFreeMarker(latlng, text, boxColor, textColor) {
   const size = document.getElementById("labelFontSize").value;
 
   const id = freeMarkerIdCounter++;
-  const marker = L.marker(latlng, { draggable:true }).addTo(markerLayer);
+  const marker = L.marker(latlng, { draggable:true }).addTo(freeMarkerLayer);
 
   const labelMarker = L.marker(latlng, {
     icon: L.divIcon({
@@ -650,24 +653,22 @@ function createFreeMarker(latlng, text, boxColor, textColor) {
       iconAnchor:[0,-10]
     }),
     interactive:false
-  }).addTo(markerLayer);
+  }).addTo(freeMarkerLayer);
 
   const fm = { id, marker, labelMarker, text, boxColor, textColor };
   freeMarkers.push(fm);
 
-  // Drag keeps label attached
+  // Keep label following during drag
   marker.on("drag", e => {
     labelMarker.setLatLng(e.latlng);
   });
 
-  // Click opens popup editor
-  marker.on("click", () => {
-    openFreeMarkerEditor(fm);
-  });
+  // Always open editor on click
+  marker.on("click", () => openFreeMarkerEditor(fm));
 }
 
 function openFreeMarkerEditor(fm) {
-  const popupHtml = `
+  const html = `
     <div class="marker-editor">
       <h4>Edit Marker</h4>
       <label>Label text:</label>
@@ -685,9 +686,11 @@ function openFreeMarkerEditor(fm) {
     </div>
   `;
 
-  fm.marker.bindPopup(popupHtml, { closeButton:true }).openPopup();
+  const popup = L.popup()
+    .setLatLng(fm.marker.getLatLng())
+    .setContent(html)
+    .openOn(map);
 
-  // Wait for popup to be in DOM, then wire buttons
   setTimeout(() => {
     const labelInput = document.getElementById(`fm-label-${fm.id}`);
     const boxInput   = document.getElementById(`fm-box-${fm.id}`);
@@ -697,7 +700,8 @@ function openFreeMarkerEditor(fm) {
 
     if (!labelInput || !saveBtn || !delBtn) return;
 
-    saveBtn.addEventListener("click", () => {
+    /* SAVE */
+    saveBtn.onclick = () => {
       fm.text = labelInput.value || "Point";
       fm.boxColor = boxInput.value || fm.boxColor;
       fm.textColor = textInput.value || fm.textColor;
@@ -718,16 +722,19 @@ function openFreeMarkerEditor(fm) {
         iconAnchor:[0,-10]
       }));
 
-      fm.marker.closePopup();
-    });
+      map.closePopup();
+    };
 
-    delBtn.addEventListener("click", () => {
-      markerLayer.removeLayer(fm.marker);
-      markerLayer.removeLayer(fm.labelMarker);
+    /* DELETE */
+    delBtn.onclick = () => {
+      freeMarkerLayer.removeLayer(fm.marker);
+      freeMarkerLayer.removeLayer(fm.labelMarker);
       const idx = freeMarkers.findIndex(x => x.id === fm.id);
-      if (idx !== -1) freeMarkers.splice(idx,1);
-    });
-  }, 50);
+      if (idx !== -1) freeMarkers.splice(idx, 1);
+      map.closePopup();
+    };
+
+  }, 20);
 }
 
 map.on("click", e => {
@@ -738,7 +745,6 @@ map.on("click", e => {
   const text = prompt("Marker label text:", defaultLabel);
   if (text === null) return;  // cancelled
 
-  // Default colours – user can edit later via popup
   const boxColor = "#2e8b57";
   const textColor = "#ffffff";
 
