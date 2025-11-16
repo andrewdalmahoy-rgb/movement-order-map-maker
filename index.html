@@ -53,7 +53,7 @@
       top:0;
       bottom:0;
       left:0;
-      width:450px; /* wide panel */
+      width:450px;
       background:#f4f5f7;
       box-shadow: 2px 0 8px rgba(0,0,0,0.2);
       box-sizing:border-box;
@@ -214,6 +214,63 @@
       cursor:pointer;
       box-shadow:0 2px 8px rgba(0,0,0,0.25);
       z-index:1000;
+    }
+
+    /* Popup editor styling (P2) */
+    .marker-editor {
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      padding: 4px;
+    }
+    .marker-editor h4 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+      font-weight: bold;
+      color: #333;
+    }
+    .marker-editor label {
+      display:block;
+      margin-top:4px;
+      margin-bottom:2px;
+    }
+    .marker-editor input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #aaa;
+      font-size: 13px;
+    }
+    .marker-editor input[type="color"] {
+      width: 40px;
+      height: 24px;
+      border: none;
+      border-radius: 4px;
+      margin-left:4px;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    .marker-editor-buttons {
+      display:flex;
+      justify-content: space-between;
+      margin-top:8px;
+      gap:6px;
+    }
+    .marker-editor button {
+      flex:1;
+      padding:5px 6px;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .marker-editor-save {
+      background:#0b6fa6;
+      color:white;
+    }
+    .marker-editor-delete {
+      background:#b22222;
+      color:white;
     }
   </style>
 </head>
@@ -562,31 +619,24 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
 /* ========= ADD STOP BUTTON ========= */
 document.getElementById("addStopBtn").addEventListener("click", () => addStopRow("Stop"));
 
-/* ========= FREE-PLACE MARKERS ========= */
+/* ========= FREE-PLACE MARKERS (with editable popup) ========= */
 let dropMode = false;
+let freeMarkerIdCounter = 1;
+const freeMarkers = [];  // { id, marker, labelMarker, text, boxColor, textColor }
 
 document.getElementById("addFreeMarkerBtn").addEventListener("click", () => {
   dropMode = true;
   alert("Click on the map to drop a labelled marker.");
 });
 
-map.on("click", e => {
-  if (!dropMode) return;
-  dropMode = false;
-
-  const text = prompt("Marker label text:", "Point");
-  if (!text) return;
-
+function createFreeMarker(latlng, text, boxColor, textColor) {
   const font = document.getElementById("labelFont").value;
   const size = document.getElementById("labelFontSize").value;
-  const boxColor = "#2e8b57";
-  const textColor = "#ffffff";
 
-  const marker = L.marker(e.latlng, {
-    draggable:true
-  }).addTo(markerLayer);
+  const id = freeMarkerIdCounter++;
+  const marker = L.marker(latlng, { draggable:true }).addTo(markerLayer);
 
-  const labelMarker = L.marker(e.latlng, {
+  const labelMarker = L.marker(latlng, {
     icon: L.divIcon({
       html: `<div class="label-box"
                  style="background:${boxColor};
@@ -602,9 +652,97 @@ map.on("click", e => {
     interactive:false
   }).addTo(markerLayer);
 
-  marker.on("drag", ev => {
-    labelMarker.setLatLng(ev.latlng);
+  const fm = { id, marker, labelMarker, text, boxColor, textColor };
+  freeMarkers.push(fm);
+
+  // Drag keeps label attached
+  marker.on("drag", e => {
+    labelMarker.setLatLng(e.latlng);
   });
+
+  // Click opens popup editor
+  marker.on("click", () => {
+    openFreeMarkerEditor(fm);
+  });
+}
+
+function openFreeMarkerEditor(fm) {
+  const popupHtml = `
+    <div class="marker-editor">
+      <h4>Edit Marker</h4>
+      <label>Label text:</label>
+      <input type="text" id="fm-label-${fm.id}" value="${fm.text}">
+      <label>Box colour:
+        <input type="color" id="fm-box-${fm.id}" value="${fm.boxColor}">
+      </label>
+      <label>Text colour:
+        <input type="color" id="fm-text-${fm.id}" value="${fm.textColor}">
+      </label>
+      <div class="marker-editor-buttons">
+        <button class="marker-editor-save" id="fm-save-${fm.id}">Save</button>
+        <button class="marker-editor-delete" id="fm-del-${fm.id}">Delete</button>
+      </div>
+    </div>
+  `;
+
+  fm.marker.bindPopup(popupHtml, { closeButton:true }).openPopup();
+
+  // Wait for popup to be in DOM, then wire buttons
+  setTimeout(() => {
+    const labelInput = document.getElementById(`fm-label-${fm.id}`);
+    const boxInput   = document.getElementById(`fm-box-${fm.id}`);
+    const textInput  = document.getElementById(`fm-text-${fm.id}`);
+    const saveBtn    = document.getElementById(`fm-save-${fm.id}`);
+    const delBtn     = document.getElementById(`fm-del-${fm.id}`);
+
+    if (!labelInput || !saveBtn || !delBtn) return;
+
+    saveBtn.addEventListener("click", () => {
+      fm.text = labelInput.value || "Point";
+      fm.boxColor = boxInput.value || fm.boxColor;
+      fm.textColor = textInput.value || fm.textColor;
+
+      const font = document.getElementById("labelFont").value;
+      const size = document.getElementById("labelFontSize").value;
+
+      fm.labelMarker.setIcon(L.divIcon({
+        html: `<div class="label-box"
+                   style="background:${fm.boxColor};
+                          color:${fm.textColor};
+                          font-family:${font};
+                          font-size:${size};">
+                  ${fm.text}
+               </div>`,
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[0,-10]
+      }));
+
+      fm.marker.closePopup();
+    });
+
+    delBtn.addEventListener("click", () => {
+      markerLayer.removeLayer(fm.marker);
+      markerLayer.removeLayer(fm.labelMarker);
+      const idx = freeMarkers.findIndex(x => x.id === fm.id);
+      if (idx !== -1) freeMarkers.splice(idx,1);
+    });
+  }, 50);
+}
+
+map.on("click", e => {
+  if (!dropMode) return;
+  dropMode = false;
+
+  const defaultLabel = "Point";
+  const text = prompt("Marker label text:", defaultLabel);
+  if (text === null) return;  // cancelled
+
+  // Default colours – user can edit later via popup
+  const boxColor = "#2e8b57";
+  const textColor = "#ffffff";
+
+  createFreeMarker(e.latlng, text || defaultLabel, boxColor, textColor);
 });
 </script>
 
