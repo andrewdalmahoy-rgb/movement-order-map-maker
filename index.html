@@ -37,125 +37,110 @@
       left:0;
       right:0;
       bottom:0;
-      display:flex;
       overflow:hidden;
     }
 
-    /* Sidebar that collapses to a slim bar */
-    .sidebar {
-      position:relative;
-      width: 340px;
-      max-width: 340px;
-      background:#f4f5f7;
-      box-shadow: 2px 0 6px rgba(0,0,0,0.15);
-      box-sizing:border-box;
-      display:flex;
-      flex-direction:column;
-      transition: width 0.3s ease;
-    }
-
-    .sidebar.collapsed {
-      width: 32px;
-    }
-
-    .sidebar-inner {
-      padding: 12px;
-      overflow-y:auto;
-      flex:1;
-    }
-
-    .sidebar.collapsed .sidebar-inner {
-      display:none;
-    }
-
-    /* Vertical toggle bar */
-    .sidebar-toggle {
-      position:absolute;
-      top:50%;
-      right:-14px;
-      transform:translateY(-50%);
-      width:28px;
-      height:70px;
-      border-radius:0 8px 8px 0;
-      border:none;
-      background:#0b6fa6;
-      color:white;
-      cursor:pointer;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:18px;
-      box-shadow: 2px 0 6px rgba(0,0,0,0.35);
-    }
-
-    .sidebar.collapsed .sidebar-toggle {
-      right:-14px;
-    }
-
-    /* Map */
+    /* Map fills everything; sidebar floats on top */
     #map {
-      flex:1;
-      height:100%;
-      width:100%;
+      position:absolute;
+      top:0; left:0; right:0; bottom:0;
+      z-index:1;
     }
 
-    /* Stop list */
+    /* Sidebar overlay on the left */
+    .sidebar {
+      position:absolute;
+      top:0;
+      bottom:0;
+      left:0;
+      width:450px; /* P3 */
+      background:#f4f5f7;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+      box-sizing:border-box;
+      padding:12px;
+      overflow-y:auto;
+      z-index: 900;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar.hidden {
+      transform: translateX(-100%);
+    }
+
     h3 {
       margin:8px 0;
     }
 
+    /* Stop rows: multi-line layout */
     .stop-row {
-      display:flex;
-      align-items:center;
-      gap:6px;
-      padding:6px;
-      margin-bottom:6px;
+      display:grid;
+      grid-template-columns: 28px 1fr;
+      grid-template-areas:
+        "handle address"
+        ". label"
+        ". colors"
+        ". remove";
+      gap: 6px 10px;
+      padding:10px;
+      margin-bottom:10px;
       background:white;
       border-radius:6px;
       box-shadow:0 1px 3px rgba(0,0,0,0.15);
     }
 
     .drag-handle {
-      cursor:grab;
-      font-size:18px;
-      user-select:none;
-      padding:0 4px;
+      grid-area: handle;
+      cursor: grab;
+      font-size: 20px;
+      user-select: none;
+      padding-top:4px;
     }
 
     .address-input {
-      flex:1;
-      padding:6px;
+      grid-area: address;
+      width:100%;
+      padding:7px;
       border-radius:4px;
-      border:1px solid #bbb;
+      border:1px solid #aaa;
     }
 
     .label-input {
-      width:90px;
-      padding:6px;
+      grid-area: label;
+      width:100%;
+      padding:7px;
       border-radius:4px;
-      border:1px solid #bbb;
+      border:1px solid #aaa;
+    }
+
+    .color-row {
+      grid-area: colors;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      font-size:13px;
     }
 
     .color-input {
-      width:34px;
-      height:34px;
+      width:40px;
+      height:32px;
       border:none;
-      padding:0;
       border-radius:4px;
       cursor:pointer;
+      padding:0;
     }
 
     .removeStop {
+      grid-area: remove;
       background:#b22222;
       color:white;
       border:none;
+      padding:6px 10px;
       border-radius:4px;
       cursor:pointer;
-      font-size:16px;
-      padding:0 8px;
+      justify-self:flex-start;
     }
 
-    button.full-btn {
+    button.full-btn, select.full-btn {
       width:100%;
       padding:8px 10px;
       margin-top:6px;
@@ -165,6 +150,18 @@
       color:white;
       font-size:15px;
       cursor:pointer;
+      box-sizing:border-box;
+    }
+
+    select.full-btn {
+      background:white;
+      color:#333;
+      border:1px solid #aaa;
+    }
+
+    .mode-row {
+      font-size:14px;
+      margin-top:6px;
     }
 
     /* Label on map */
@@ -178,10 +175,24 @@
       pointer-events:none;
     }
 
-    .mode-row {
-      margin-top:6px;
-      margin-bottom:4px;
-      font-size:14px;
+    /* Floating round toggle button (bottom-left) */
+    .panel-toggle {
+      position:absolute;
+      bottom:16px;
+      left:16px;
+      width:48px;
+      height:48px;
+      border-radius:50%;
+      border:1px solid #ccc;        /* B3 – white with border */
+      background:white;
+      color:#333;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      z-index: 1000;
     }
   </style>
 </head>
@@ -190,109 +201,121 @@
 <header>Movement Order Map Maker</header>
 
 <div class="layout">
-  <!-- Collapsible sidebar -->
-  <div id="sidebar" class="sidebar">
-    <button id="sidebarToggle" class="sidebar-toggle">≡</button>
-
-    <div class="sidebar-inner">
-      <h3>Stops</h3>
-      <div id="stopContainer"></div>
-      <button id="addStopBtn" class="full-btn">➕ Add Stop</button>
-
-      <h3>Label Font</h3>
-      <select id="labelFont" class="full-btn">
-        <option value="Arial" selected>Arial</option>
-        <option value="Helvetica">Helvetica</option>
-        <option value="Verdana">Verdana</option>
-        <option value="Tahoma">Tahoma</option>
-        <option value="Georgia">Georgia</option>
-        <option value="Times New Roman">Times New Roman</option>
-        <option value="Courier New">Courier New</option>
-      </select>
-
-      <h3>Font Size</h3>
-      <select id="labelFontSize" class="full-btn">
-        <option value="12px">12px</option>
-        <option value="14px" selected>14px</option>
-        <option value="16px">16px</option>
-        <option value="18px">18px</option>
-        <option value="20px">20px</option>
-      </select>
-
-      <h3>Travel Mode</h3>
-      <div class="mode-row">
-        <label><input type="radio" name="mode" value="DRIVE" checked> Driving</label><br>
-        <label><input type="radio" name="mode" value="WALK"> Walking</label>
-      </div>
-
-      <button id="routeBtn" class="full-btn">Show Route</button>
-      <button id="recenterBtn" class="full-btn">🔍 Recenter Route</button>
-      <button id="satToggle" class="full-btn">🛰 Satellite View</button>
-    </div>
-  </div>
-
-  <!-- Map -->
   <div id="map"></div>
+
+  <!-- Floating round toggle button -->
+  <button id="panelToggle" class="panel-toggle">≡</button>
+
+  <!-- Sidebar overlay -->
+  <div id="sidebar" class="sidebar">
+    <h3>Stops</h3>
+    <div id="stopContainer"></div>
+    <button id="addStopBtn" class="full-btn">➕ Add Stop</button>
+
+    <h3>Label Font</h3>
+    <select id="labelFont" class="full-btn">
+      <option value="Arial" selected>Arial</option>
+      <option value="Helvetica">Helvetica</option>
+      <option value="Verdana">Verdana</option>
+      <option value="Tahoma">Tahoma</option>
+      <option value="Georgia">Georgia</option>
+      <option value="Times New Roman">Times New Roman</option>
+      <option value="Courier New">Courier New</option>
+    </select>
+
+    <h3>Font Size</h3>
+    <select id="labelFontSize" class="full-btn">
+      <option value="12px">12px</option>
+      <option value="14px" selected>14px</option>
+      <option value="16px">16px</option>
+      <option value="18px">18px</option>
+      <option value="20px">20px</option>
+    </select>
+
+    <h3>Travel Mode</h3>
+    <div class="mode-row">
+      <label><input type="radio" name="mode" value="DRIVE" checked> Driving</label><br>
+      <label><input type="radio" name="mode" value="WALK"> Walking</label>
+    </div>
+
+    <button id="routeBtn" class="full-btn">Show Route</button>
+    <button id="recenterBtn" class="full-btn">🔍 Recenter Route</button>
+    <button id="satToggle" class="full-btn">🛰 Satellite View</button>
+  </div>
 </div>
 
-<!-- Google Maps JS (for Places + Routes) -->
+<!-- Google Maps JS (Places + Routes) -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
 
 <script>
-/* ======= MAP & LAYERS ======= */
+/* ========= MAP SETUP ========= */
 const map = L.map("map").setView([52.5, -1.5], 6);
 
 const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "&copy; OpenStreetMap contributors"
+  maxZoom:19,
+  attribution:"&copy; OpenStreetMap contributors"
 }).addTo(map);
 
-const satellite = L.tileLayer(
+const esriSat = L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom: 19,
-    attribution: "Tiles &copy; Esri"
+    maxZoom:19,
+    attribution:"Tiles &copy; Esri"
   }
 );
 
 let satelliteOn = false;
 
 const markerLayer = L.layerGroup().addTo(map);
-const routeLayer = L.layerGroup().addTo(map);
+const routeLayer  = L.layerGroup().addTo(map);
 
-/* ======= SIDEBAR TOGGLE ======= */
+/* ========= SIDEBAR TOGGLE ========= */
 const sidebar = document.getElementById("sidebar");
-const sidebarToggle = document.getElementById("sidebarToggle");
+const panelToggle = document.getElementById("panelToggle");
+let panelOpen = true;
 
-sidebarToggle.addEventListener("click", () => {
-  sidebar.classList.toggle("collapsed");
-  sidebarToggle.textContent = sidebar.classList.contains("collapsed") ? "▶" : "≡";
-  setTimeout(() => map.invalidateSize(true), 320);
+function updatePanelState() {
+  if (panelOpen) {
+    sidebar.classList.remove("hidden");
+    panelToggle.textContent = "✕";
+  } else {
+    sidebar.classList.add("hidden");
+    panelToggle.textContent = "≡";
+  }
+}
+
+panelToggle.addEventListener("click", () => {
+  panelOpen = !panelOpen;
+  updatePanelState();
+  setTimeout(() => map.invalidateSize(true), 200);
 });
 
-/* ======= SATELLITE TOGGLE ======= */
+updatePanelState();
+
+/* ========= SATELLITE TOGGLE ========= */
 document.getElementById("satToggle").addEventListener("click", () => {
   satelliteOn = !satelliteOn;
   if (satelliteOn) {
     map.removeLayer(streets);
-    satellite.addTo(map);
+    esriSat.addTo(map);
   } else {
-    map.removeLayer(satellite);
+    map.removeLayer(esriSat);
     streets.addTo(map);
   }
   setTimeout(() => map.invalidateSize(true), 150);
 });
 
-/* ======= AUTOCOMPLETE HANDLING ======= */
+/* ========= AUTOCOMPLETE STORAGE ========= */
 const acMap = new Map();
 
+/* Attach Places Autocomplete to an input */
 function attachAutocomplete(input) {
   const ac = new google.maps.places.Autocomplete(input, {
-    fields: ["geometry", "formatted_address"]
+    fields:["geometry","formatted_address"]
   });
   acMap.set(input, ac);
 }
 
-/* ======= STOPS UI ======= */
+/* ========= STOP ROW CREATION ========= */
 const stopContainer = document.getElementById("stopContainer");
 
 function addStopRow(defaultLabel = "") {
@@ -303,9 +326,13 @@ function addStopRow(defaultLabel = "") {
     <div class="drag-handle">☰</div>
     <input type="text" class="address-input" placeholder="Address or postcode" />
     <input type="text" class="label-input" placeholder="${defaultLabel}" />
-    <input type="color" class="color-input boxColor" value="#2e8b57" />
-    <input type="color" class="color-input textColor" value="#ffffff" />
-    <button class="removeStop">✖</button>
+    <div class="color-row">
+      <label>Box:</label>
+      <input type="color" class="color-input boxColor" value="#2e8b57" />
+      <label>Text:</label>
+      <input type="color" class="color-input textColor" value="#ffffff" />
+    </div>
+    <button class="removeStop">✖ Remove</button>
   `;
 
   row.querySelector(".removeStop").addEventListener("click", () => row.remove());
@@ -315,17 +342,17 @@ function addStopRow(defaultLabel = "") {
   attachAutocomplete(input);
 }
 
-/* Initial Start and End rows */
+/* Initial Start + End rows */
 addStopRow("Start");
 addStopRow("End");
 
-/* Make list sortable by drag handle */
+/* Make stop list sortable via handle */
 Sortable.create(stopContainer, {
   handle: ".drag-handle",
   animation: 150
 });
 
-/* ======= POLYLINE DECODER (Google encoded polyline) ======= */
+/* ========= POLYLINE DECODER ========= */
 function decodePolyline(encoded) {
   const coords = [];
   let index = 0, lat = 0, lng = 0;
@@ -355,50 +382,49 @@ function decodePolyline(encoded) {
   return coords;
 }
 
-/* ======= GOOGLE ROUTES REQUEST ======= */
+/* ========= GOOGLE ROUTES ========= */
 async function computeRoute(start, end, mode) {
   const body = {
-    origin: { location: { latLng: { latitude: start[0], longitude: start[1] } } },
-    destination: { location: { latLng: { latitude: end[0], longitude: end[1] } } },
+    origin: { location: { latLng: { latitude:start[0], longitude:start[1] } } },
+    destination: { location: { latLng: { latitude:end[0], longitude:end[1] } } },
     travelMode: mode  // "DRIVE" or "WALK"
   };
 
   const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": "AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
-      "X-Goog-FieldMask": "routes.polyline.encodedPolyline"
+      "Content-Type":"application/json",
+      "X-Goog-Api-Key":"AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
+      "X-Goog-FieldMask":"routes.polyline.encodedPolyline"
     },
     body: JSON.stringify(body)
   });
 
   const data = await res.json();
   if (!data.routes || !data.routes[0] || !data.routes[0].polyline) return [];
-  const encoded = data.routes[0].polyline.encodedPolyline;
-  return decodePolyline(encoded);
+  return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
 
-/* ======= CLEAR MAP ======= */
+/* ========= CLEAR MAP ========= */
 function clearMap() {
   markerLayer.clearLayers();
   routeLayer.clearLayers();
 }
 
-/* ======= RECENTER ROUTE ======= */
+/* ========= RECENTER ROUTE ========= */
 function recenterRoute() {
-  if (routeLayer.getLayers().length === 0) return;
+  if (!routeLayer.getLayers().length) return;
   let bounds = null;
   routeLayer.eachLayer(l => {
     if (!bounds) bounds = l.getBounds();
     else bounds.extend(l.getBounds());
   });
-  if (bounds) map.fitBounds(bounds, { padding:[40,40] });
+  if (bounds) map.fitBounds(bounds, {padding:[40,40]});
 }
 
 document.getElementById("recenterBtn").addEventListener("click", recenterRoute);
 
-/* ======= SHOW ROUTE ======= */
+/* ========= BUILD ROUTE ========= */
 document.getElementById("routeBtn").addEventListener("click", async () => {
   try {
     clearMap();
@@ -417,6 +443,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
         alert("Please select an address from the suggestions for every stop.");
         return;
       }
+
       const lat = place.geometry.location.lat();
       const lng = place.geometry.location.lng();
       coords.push([lat,lng]);
@@ -427,15 +454,18 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
     }
 
     if (coords.length < 2) {
-      alert("Need at least a start and end point.");
+      alert("Need at least a start and end.");
       return;
     }
 
-    const mode = document.querySelector('input[name="mode"]:checked').value; // "DRIVE" or "WALK"
+    const modeVal = document.querySelector('input[name="mode"]:checked').value; // "DRIVE" or "WALK"
+    const travelMode = modeVal === "WALK" ? "WALK" : "DRIVE";
     const font = document.getElementById("labelFont").value;
     const size = document.getElementById("labelFontSize").value;
 
-    /* Create markers & labels */
+    const markers = [];
+    const labelMarkers = [];
+
     coords.forEach((c, i) => {
       const iconUrl =
         i === 0
@@ -454,7 +484,6 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
         draggable:true
       }).addTo(markerLayer);
 
-      // Label marker
       const labelMarker = L.marker(c, {
         icon: L.divIcon({
           html: `<div class="label-box"
@@ -471,24 +500,20 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
         interactive:false
       }).addTo(markerLayer);
 
-      // Move label live while dragging
+      markers.push(marker);
+      labelMarkers.push(labelMarker);
+
       marker.on("drag", e => {
         labelMarker.setLatLng(e.latlng);
+        coords[i] = [e.latlng.lat, e.latlng.lng];
       });
 
-      // After drag ends, recompute route between all points, but keep zoom
       marker.on("dragend", async () => {
-        const newCoords = coords.map((pt,j) => j===i
-          ? [marker.getLatLng().lat, marker.getLatLng().lng]
-          : pt
-        );
-        coords.splice(0, coords.length, ...newCoords);
-        await drawRouteSegments(coords, boxColors, mode);
+        await drawRouteSegments(coords, boxColors, travelMode, false);
       });
     });
 
-    // Initial route draw (with fit to bounds once)
-    await drawRouteSegments(coords, boxColors, mode, true);
+    await drawRouteSegments(coords, boxColors, travelMode, true);
 
   } catch (err) {
     console.error(err);
@@ -496,25 +521,25 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
   }
 });
 
-/* ======= DRAW ROUTE SEGMENTS ======= */
-async function drawRouteSegments(coords, boxColors, mode, doFit=false) {
+/* ========= DRAW ROUTE SEGMENTS ========= */
+async function drawRouteSegments(coords, boxColors, travelMode, doFit) {
   routeLayer.clearLayers();
 
   for (let i = 0; i < coords.length - 1; i++) {
-    const seg = await computeRoute(coords[i], coords[i+1], mode);
+    const seg = await computeRoute(coords[i], coords[i+1], travelMode);
     if (!seg.length) continue;
 
-    L.polyline(seg.map(p => [p[0],p[1]]), {
+    const poly = L.polyline(seg.map(p => [p[0],p[1]]), {
       color: boxColors[i],
-      weight: 5,
-      dashArray: mode === "WALK" ? "6,10" : null
+      weight:5,
+      dashArray: travelMode === "WALK" ? "6,10" : null
     }).addTo(routeLayer);
   }
 
   if (doFit) recenterRoute();
 }
 
-/* ======= ADD STOP BUTTON ======= */
+/* ========= ADD STOP BUTTON ========= */
 document.getElementById("addStopBtn").addEventListener("click", () => addStopRow("Stop"));
 </script>
 
