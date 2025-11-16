@@ -40,26 +40,26 @@
       overflow:hidden;
     }
 
-    /* Map fills everything; sidebar floats on top */
+    /* Map fills everything; sidebar overlays on top */
     #map {
       position:absolute;
       top:0; left:0; right:0; bottom:0;
       z-index:1;
     }
 
-    /* Sidebar overlay on the left */
+    /* Sidebar overlay */
     .sidebar {
       position:absolute;
       top:0;
       bottom:0;
       left:0;
-      width:450px; /* P3 */
+      width:450px; /* wide panel */
       background:#f4f5f7;
       box-shadow: 2px 0 8px rgba(0,0,0,0.2);
       box-sizing:border-box;
       padding:12px;
       overflow-y:auto;
-      z-index: 900;
+      z-index:900;
       transition: transform 0.3s ease;
     }
 
@@ -164,18 +164,19 @@
       margin-top:6px;
     }
 
-    /* Label on map */
+    /* Label on map – fixed shape */
     .label-box {
+      display:inline-block;
       padding:6px 10px;
       border-radius:8px;
       font-weight:bold;
       white-space:nowrap;
       box-shadow:0 2px 6px rgba(0,0,0,0.3);
-      transform:translateY(-12px);
+      line-height:1.2;
       pointer-events:none;
     }
 
-    /* Floating round toggle button (bottom-left) */
+    /* Floating round panel toggle (bottom-left) */
     .panel-toggle {
       position:absolute;
       bottom:16px;
@@ -183,7 +184,7 @@
       width:48px;
       height:48px;
       border-radius:50%;
-      border:1px solid #ccc;        /* B3 – white with border */
+      border:1px solid #ccc;      /* white with border */
       background:white;
       color:#333;
       display:flex;
@@ -192,7 +193,27 @@
       font-size:24px;
       cursor:pointer;
       box-shadow:0 2px 8px rgba(0,0,0,0.25);
-      z-index: 1000;
+      z-index:1000;
+    }
+
+    /* Floating free-marker button (above panel toggle) */
+    .free-marker-btn {
+      position:absolute;
+      bottom:78px; /* above panel-toggle */
+      left:16px;
+      width:48px;
+      height:48px;
+      border-radius:50%;
+      border:1px solid #ccc;
+      background:white;
+      color:#333;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      z-index:1000;
     }
   </style>
 </head>
@@ -203,8 +224,9 @@
 <div class="layout">
   <div id="map"></div>
 
-  <!-- Floating round toggle button -->
+  <!-- Floating buttons -->
   <button id="panelToggle" class="panel-toggle">≡</button>
+  <button id="addFreeMarkerBtn" class="free-marker-btn" title="Drop labelled marker">📍</button>
 
   <!-- Sidebar overlay -->
   <div id="sidebar" class="sidebar">
@@ -265,7 +287,7 @@ const esriSat = L.tileLayer(
 
 let satelliteOn = false;
 
-const markerLayer = L.layerGroup().addTo(map);
+const markerLayer = L.layerGroup().addTo(map); // route markers + labels + free markers
 const routeLayer  = L.layerGroup().addTo(map);
 
 /* ========= SIDEBAR TOGGLE ========= */
@@ -307,7 +329,6 @@ document.getElementById("satToggle").addEventListener("click", () => {
 /* ========= AUTOCOMPLETE STORAGE ========= */
 const acMap = new Map();
 
-/* Attach Places Autocomplete to an input */
 function attachAutocomplete(input) {
   const ac = new google.maps.places.Autocomplete(input, {
     fields:["geometry","formatted_address"]
@@ -405,13 +426,12 @@ async function computeRoute(start, end, mode) {
   return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
 
-/* ========= CLEAR MAP ========= */
-function clearMap() {
+/* ========= CLEAR / RECENTER ========= */
+function clearRouteAndMarkers() {
   markerLayer.clearLayers();
   routeLayer.clearLayers();
 }
 
-/* ========= RECENTER ROUTE ========= */
 function recenterRoute() {
   if (!routeLayer.getLayers().length) return;
   let bounds = null;
@@ -424,10 +444,28 @@ function recenterRoute() {
 
 document.getElementById("recenterBtn").addEventListener("click", recenterRoute);
 
+/* ========= DRAW ROUTE SEGMENTS ========= */
+async function drawRouteSegments(coords, boxColors, travelMode, doFit) {
+  routeLayer.clearLayers();
+
+  for (let i = 0; i < coords.length - 1; i++) {
+    const seg = await computeRoute(coords[i], coords[i+1], travelMode);
+    if (!seg.length) continue;
+
+    L.polyline(seg.map(p => [p[0],p[1]]), {
+      color: boxColors[i],
+      weight:5,
+      dashArray: travelMode === "WALK" ? "6,10" : null
+    }).addTo(routeLayer);
+  }
+
+  if (doFit) recenterRoute();
+}
+
 /* ========= BUILD ROUTE ========= */
 document.getElementById("routeBtn").addEventListener("click", async () => {
   try {
-    clearMap();
+    clearRouteAndMarkers();
 
     const rows = [...document.querySelectorAll(".stop-row")];
     const coords = [];
@@ -458,8 +496,8 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
       return;
     }
 
-    const modeVal = document.querySelector('input[name="mode"]:checked').value; // "DRIVE" or "WALK"
-    const travelMode = modeVal === "WALK" ? "WALK" : "DRIVE";
+    const modeRadio = document.querySelector('input[name="mode"]:checked').value; // "DRIVE" or "WALK"
+    const travelMode = modeRadio === "WALK" ? "WALK" : "DRIVE";
     const font = document.getElementById("labelFont").value;
     const size = document.getElementById("labelFontSize").value;
 
@@ -495,7 +533,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
                  </div>`,
           className:"",
           iconSize:[0,0],
-          iconAnchor:[40,30]
+          iconAnchor:[0,-10]   // above marker
         }),
         interactive:false
       }).addTo(markerLayer);
@@ -521,26 +559,53 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
   }
 });
 
-/* ========= DRAW ROUTE SEGMENTS ========= */
-async function drawRouteSegments(coords, boxColors, travelMode, doFit) {
-  routeLayer.clearLayers();
-
-  for (let i = 0; i < coords.length - 1; i++) {
-    const seg = await computeRoute(coords[i], coords[i+1], travelMode);
-    if (!seg.length) continue;
-
-    const poly = L.polyline(seg.map(p => [p[0],p[1]]), {
-      color: boxColors[i],
-      weight:5,
-      dashArray: travelMode === "WALK" ? "6,10" : null
-    }).addTo(routeLayer);
-  }
-
-  if (doFit) recenterRoute();
-}
-
 /* ========= ADD STOP BUTTON ========= */
 document.getElementById("addStopBtn").addEventListener("click", () => addStopRow("Stop"));
+
+/* ========= FREE-PLACE MARKERS ========= */
+let dropMode = false;
+
+document.getElementById("addFreeMarkerBtn").addEventListener("click", () => {
+  dropMode = true;
+  alert("Click on the map to drop a labelled marker.");
+});
+
+map.on("click", e => {
+  if (!dropMode) return;
+  dropMode = false;
+
+  const text = prompt("Marker label text:", "Point");
+  if (!text) return;
+
+  const font = document.getElementById("labelFont").value;
+  const size = document.getElementById("labelFontSize").value;
+  const boxColor = "#2e8b57";
+  const textColor = "#ffffff";
+
+  const marker = L.marker(e.latlng, {
+    draggable:true
+  }).addTo(markerLayer);
+
+  const labelMarker = L.marker(e.latlng, {
+    icon: L.divIcon({
+      html: `<div class="label-box"
+                 style="background:${boxColor};
+                        color:${textColor};
+                        font-family:${font};
+                        font-size:${size};">
+                ${text}
+             </div>`,
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[0,-10]
+    }),
+    interactive:false
+  }).addTo(markerLayer);
+
+  marker.on("drag", ev => {
+    labelMarker.setLatLng(ev.latlng);
+  });
+});
 </script>
 
 </body>
