@@ -1,582 +1,425 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Movement Order Map Maker</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Movement Order Map Maker</title>
 
-  <!-- Google Fonts -->
-  <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Lato:wght@400;600&family=Poppins:wght@400;600&display=swap">
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<!-- SortableJS for drag & drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
-  <style>
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      font-family: Roboto, Arial, sans-serif;
-    }
+<style>
+/* Fullscreen base */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+}
 
-    /* Header with toggle + title + layer buttons */
-    header {
-      background: #0b6fa6;
-      color: white;
-      padding: 12px 16px;
-      position: relative;
-      z-index: 2;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      box-sizing: border-box;
-      min-height: 60px;
-      justify-content: space-between;
-    }
+header {
+  background: #0b6fa6;
+  color: white;
+  padding: 12px 16px;
+  font-size: 20px;
+}
 
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+.layout {
+  position: absolute;
+  top: 56px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  overflow: hidden;
+}
 
-    .header-toggle {
-      width: 38px;
-      height: 38px;
-      background: white;
-      border: 1px solid #dcdcdc;
-      border-radius: 4px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      color: #000;
-      user-select: none;
-    }
+/* Side panel */
+#panel {
+  width: 330px;
+  background: #f8f9fa;
+  padding: 12px;
+  overflow-y: auto;
+  border-right: 1px solid #ccc;
+  transition: transform 0.3s ease;
+}
+#panel.hidden {
+  transform: translateX(-330px);
+}
 
-    .header-toggle:hover {
-      background: #f5f5f5;
-    }
+#togglePanel {
+  position: absolute;
+  left: 330px;
+  top: 70px;
+  z-index: 9999;
+  padding: 6px 10px;
+  background: #0b6fa6;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+}
 
-    header h2 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 600;
-    }
+/* Map */
+#map {
+  flex: 1;
+  height: 100%;
+  width: 100%;
+}
 
-    .layer-buttons {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
+/* Stop rows */
+.stop-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: #ffffff;
+  padding: 6px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
 
-    .layer-btn {
-      padding: 6px 10px;
-      font-size: 13px;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.7);
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-      cursor: pointer;
-    }
+.drag-handle {
+  cursor: grab;
+  font-size: 20px;
+  padding: 4px;
+  user-select: none;
+}
 
-    .layer-btn.active {
-      background: white;
-      color: #0b6fa6;
-      border-color: white;
-    }
+.address-input {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
 
-    /* Layout container fills below the header */
-    .layout {
-      position: absolute;
-      top: 60px;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: flex;
-      overflow: hidden;
-    }
+.label-input {
+  width: 90px;
+  padding: 6px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
 
-    /* Left panel */
-    .controls {
-      width: 330px;
-      background: white;
-      padding: 15px;
-      overflow-y: auto;
-      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-      box-sizing: border-box;
-    }
+.color-input {
+  width: 36px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
 
-    .controls.hidden {
-      display: none;
-    }
+.removeStop {
+  background: #b22222;
+  color: white;
+  border: none;
+  font-size: 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0 8px;
+}
 
-    /* Map */
-    #map {
-      flex: 1;
-      background: #ccc;
-      position: relative;
-      z-index: 1;
-    }
+button.action {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  background: #0b6fa6;
+  border: none;
+  color: white;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
 
-    /* Stop rows */
-    .stop-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .address-input {
-      width: 260px;
-      padding: 8px;
-      border-radius: 4px;
-      border: 1px solid #aaa;
-    }
-
-    .stop-row input[type=text] {
-      padding: 6px;
-      width: 150px;
-      border-radius: 4px;
-      border: 1px solid #aaa;
-    }
-
-    .stop-row input[type=color] {
-      width: 42px;
-      height: 40px;
-      border: none;
-      border-radius: 4px;
-    }
-
-    .stop-row button {
-      padding: 8px 12px;
-      background: #b22222;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    #addStopBtn,
-    #routeBtn {
-      padding: 10px 14px;
-      background: #0b6fa6;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      width: 180px;
-      font-size: 16px;
-      margin-top: 4px;
-    }
-
-    /* Font controls */
-    .font-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      margin-top: 8px;
-      margin-bottom: 12px;
-    }
-
-    .font-row select {
-      padding: 5px 8px;
-      border-radius: 4px;
-      border: 1px solid #aaa;
-      font-size: 14px;
-    }
-
-    /* Labels on map */
-    .label-box {
-      display: inline-block;
-      padding: 7px 12px;
-      border-radius: 8px;
-      font-weight: 600;
-      white-space: nowrap;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-      transform: translateY(-12px);
-      pointer-events: none;
-    }
-  </style>
+/* Label on the map */
+.label-box {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: bold;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  transform: translateY(-12px);
+}
+</style>
 </head>
 
 <body>
 
-<header>
-  <div class="header-left">
-    <div id="panelToggle" class="header-toggle">≡</div>
-    <h2>Movement Order Map Maker</h2>
-  </div>
-  <div class="layer-buttons">
-    <button id="mapLayerBtn" class="layer-btn active">Map</button>
-    <button id="satLayerBtn" class="layer-btn">Satellite</button>
-  </div>
-</header>
+<header>Movement Order Map Maker</header>
 
 <div class="layout">
-  <!-- Left control panel -->
-  <div id="controlsPanel" class="controls">
 
-    <div id="stopContainer">
+  <button id="togglePanel">≡</button>
 
-      <!-- Start row -->
-      <div class="stop-row">
-        <input class="address-input" placeholder="Start address">
-        <input class="label" placeholder="Start">
-        <input type="color" class="boxColor" value="#2e8b57">
-        <input type="color" class="textColor" value="#ffffff">
-        <button class="removeStop">✖</button>
-      </div>
+  <div id="panel">
 
-      <!-- End row -->
-      <div class="stop-row">
-        <input class="address-input" placeholder="End address">
-        <input class="label" placeholder="End">
-        <input type="color" class="boxColor" value="#b22222">
-        <input type="color" class="textColor" value="#ffffff">
-        <button class="removeStop">✖</button>
-      </div>
-
-    </div>
-
-    <button id="addStopBtn">➕ Add Stop</button>
+    <h3>Stops</h3>
+    <div id="stopContainer"></div>
+    <button id="addStopBtn" class="action">➕ Add Stop</button>
 
     <h3>Label Font</h3>
-    <div class="font-row">
-      <label for="labelFont">Font:</label>
-      <select id="labelFont">
-        <option value="Roboto" selected>Roboto</option>
-        <option value="Open Sans">Open Sans</option>
-        <option value="Montserrat">Montserrat</option>
-        <option value="Lato">Lato</option>
-        <option value="Poppins">Poppins</option>
-        <option value="Arial">Arial</option>
-        <option value="Helvetica">Helvetica</option>
-        <option value="Tahoma">Tahoma</option>
-        <option value="Verdana">Verdana</option>
-        <option value="Georgia">Georgia</option>
-        <option value="Courier New">Courier New</option>
-      </select>
+    <select id="labelFont" class="action">
+      <option value="Arial">Arial</option>
+      <option value="Helvetica">Helvetica</option>
+      <option value="Verdana">Verdana</option>
+      <option value="Tahoma">Tahoma</option>
+      <option value="Georgia">Georgia</option>
+      <option value="Times New Roman">Times New Roman</option>
+      <option value="Courier New">Courier New</option>
+    </select>
 
-      <label for="labelFontSize">Size:</label>
-      <select id="labelFontSize">
-        <option value="12px">12</option>
-        <option value="14px" selected>14</option>
-        <option value="16px">16</option>
-        <option value="18px">18</option>
-        <option value="20px">20</option>
-        <option value="22px">22</option>
-        <option value="24px">24</option>
-      </select>
-    </div>
+    <h3>Font Size</h3>
+    <select id="labelFontSize" class="action">
+      <option value="12px">12px</option>
+      <option value="14px" selected>14px</option>
+      <option value="16px">16px</option>
+      <option value="18px">18px</option>
+      <option value="20px">20px</option>
+    </select>
 
-    <button id="routeBtn">Show Route</button>
+    <h3>Travel Mode</h3>
+    <label><input type="radio" name="mode" value="DRIVING" checked> Driving</label><br>
+    <label><input type="radio" name="mode" value="WALKING"> Walking</label>
+
+    <button id="routeBtn" class="action">Show Route</button>
+    <button id="recenterBtn" class="action">🔍 Recenter Route</button>
+    <button id="satToggle" class="action">🛰 Satellite View</button>
+
   </div>
 
-  <!-- Map -->
   <div id="map"></div>
+
 </div>
 
-<!-- Google Maps JS (Places only) -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
-
 <script>
-/* ===================== MAP + BASE LAYERS ===================== */
-let map = L.map("map").setView([52.5, -1.5], 6);
+/* ------------------- MAP SETUP ------------------- */
+const map = L.map("map").setView([52.5, -1.5], 6);
+let streetTiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png");
+let satTiles = L.tileLayer("https://{s}.google.com/vt?lyrs=s&x={x}&y={y}&z={z}", {
+  subdomains:['mt0','mt1','mt2','mt3']
+});
+streetTiles.addTo(map);
 
-const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "&copy; OpenStreetMap contributors"
-}).addTo(map);
-
-const satellite = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom: 19,
-    attribution: "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+let satellite = false;
+document.getElementById("satToggle").onclick = () => {
+  satellite = !satellite;
+  if (satellite) {
+    map.removeLayer(streetTiles);
+    map.addLayer(satTiles);
+  } else {
+    map.removeLayer(satTiles);
+    map.addLayer(streetTiles);
   }
-);
-
-let currentBase = streets;
+  setTimeout(() => map.invalidateSize(true), 200);
+};
 
 let markerGroup = L.layerGroup().addTo(map);
-let routeLayers = [];
-let acMap = new Map();
-let stopMarkers = [];
-let stopLabels = [];
+let routeGroup = L.layerGroup().addTo(map);
 
-/* ===================== PANEL TOGGLE ===================== */
-const panel = document.getElementById("controlsPanel");
-const toggleBtn = document.getElementById("panelToggle");
+function refitRoute() {
+  if (routeGroup.getLayers().length === 0) return;
+  let b = null;
+  routeGroup.eachLayer(l => {
+    if (!b) b = l.getBounds();
+    else b.extend(l.getBounds());
+  });
+  map.fitBounds(b, {padding:[40,40]});
+}
+
+/* ------------------- RESIZE FIX ------------------- */
+function resizeMap() {
+  setTimeout(() => map.invalidateSize(true), 50);
+  setTimeout(() => map.invalidateSize(true), 300);
+  setTimeout(() => map.invalidateSize(true), 700);
+}
+
+/* ---------------- PANEL TOGGLE ---------------- */
+const toggleBtn = document.getElementById("togglePanel");
+const panel = document.getElementById("panel");
 let panelOpen = true;
 
-toggleBtn.addEventListener("click", () => {
+toggleBtn.onclick = () => {
   panelOpen = !panelOpen;
-  if (panelOpen) {
-    panel.classList.remove("hidden");
-  } else {
-    panel.classList.add("hidden");
-  }
-  // Let layout settle, then fix map size
-  setTimeout(() => {
-    map.invalidateSize(true);
-  }, 150);
-});
+  panel.classList.toggle("hidden");
+  toggleBtn.textContent = panelOpen ? "≡" : "▶";
+  resizeMap();
+};
 
-/* ===================== LAYER TOGGLE (MAP / SATELLITE) ===================== */
-const mapLayerBtn = document.getElementById("mapLayerBtn");
-const satLayerBtn = document.getElementById("satLayerBtn");
-
-function setBaseLayer(layer) {
-  if (currentBase) {
-    map.removeLayer(currentBase);
-  }
-  currentBase = layer;
-  currentBase.addTo(map);
-  map.invalidateSize(true);
-}
-
-mapLayerBtn.addEventListener("click", () => {
-  mapLayerBtn.classList.add("active");
-  satLayerBtn.classList.remove("active");
-  setBaseLayer(streets);
-});
-
-satLayerBtn.addEventListener("click", () => {
-  satLayerBtn.classList.add("active");
-  mapLayerBtn.classList.remove("active");
-  setBaseLayer(satellite);
-});
-
-/* ===================== GOOGLE HELPERS ===================== */
-function decodePolyline(encoded) {
-  const coords = [];
-  let index = 0, lat = 0, lng = 0;
-
-  while (index < encoded.length) {
-    let b, shift = 0, result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    let dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lat += dlat;
-
-    shift = 0;
-    result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    let dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lng += dlng;
-
-    coords.push([lat / 1e5, lng / 1e5]);
-  }
-  return coords;
-}
-
-async function computeRouteGoogle(start, end) {
-  const body = {
-    origin: { location: { latLng: { latitude: start[0], longitude: start[1] } } },
-    destination: { location: { latLng: { latitude: end[0], longitude: end[1] } } },
-    travelMode: "DRIVE"
-  };
-
-  let res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": "AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
-      "X-Goog-FieldMask": "routes.polyline.encodedPolyline"
-    },
-    body: JSON.stringify(body)
+/* ----------------- DRAGGABLE MARKERS ---------------- */
+function makeDraggable(marker, index, coords, updateRoute) {
+  marker.on("drag", e => {
+    const p = e.latlng;
+    coords[index] = [p.lat, p.lng];
+    updateRoute();
   });
-
-  let data = await res.json();
-  if (!data.routes || !data.routes.length || !data.routes[0].polyline) return [];
-  return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
 
-/* ===================== AUTOCOMPLETE ===================== */
-function attachAutocomplete(input) {
-  const ac = new google.maps.places.Autocomplete(input, { fields: ["geometry"] });
-  acMap.set(input, ac);
+/* ---------------- AUTOCOMPLETE ---------------- */
+const acMap = new Map();
+
+/* ---------------- ROUTE REQUEST ---------------- */
+async function googleRoute(origin, dest, mode) {
+  const res = await fetch(
+    `https://routes.googleapis.com/directions/v2:computeRoutes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": "YOUR_GOOGLE_API_KEY_HERE",
+        "X-Goog-FieldMask": "*"
+      },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: origin[0], longitude: origin[1] }}},
+        destination: { location: { latLng: { latitude: dest[0], longitude: dest[1] }}},
+        travelMode: mode
+      })
+    }
+  );
+  return res.json();
 }
 
-document.querySelectorAll(".address-input").forEach(attachAutocomplete);
-
-/* ===================== MAP CLEARING ===================== */
-function clearMap() {
-  markerGroup.clearLayers();
-  routeLayers.forEach(r => map.removeLayer(r));
-  routeLayers = [];
-  stopMarkers = [];
-  stopLabels = [];
-}
-
-/* ===================== ADD STOP ROW ===================== */
-document.getElementById("addStopBtn").addEventListener("click", () => {
+/* ---------------- ADD STOP ROW ---------------- */
+function addStopRow(defaultLabel="") {
   const row = document.createElement("div");
   row.className = "stop-row";
 
   row.innerHTML = `
-    <input class="address-input" placeholder="Address">
-    <input class="label" placeholder="Label">
-    <input type="color" class="boxColor" value="#2e8b57">
-    <input type="color" class="textColor" value="#ffffff">
+    <div class="drag-handle">☰</div>
+    <input type="text" class="address-input" placeholder="Address or postcode">
+    <input type="text" class="label-input" placeholder="${defaultLabel}">
+    <input type="color" class="color-input" value="#2e8b57">
+    <input type="color" class="color-input" value="#ffffff">
     <button class="removeStop">✖</button>
   `;
 
-  row.querySelector(".removeStop").addEventListener("click", () => row.remove());
+  row.querySelector(".removeStop").onclick = () => row.remove();
   document.getElementById("stopContainer").appendChild(row);
 
   const input = row.querySelector(".address-input");
-  attachAutocomplete(input);
+
+  const ac = new google.maps.places.Autocomplete(input, {
+    fields: ["geometry", "formatted_address"]
+  });
+  acMap.set(input, ac);
+}
+
+/* ---------------- INITIAL 2 STOPS ---------------- */
+addStopRow("Start");
+addStopRow("End");
+
+/* --------------- SORTABLE REORDER ---------------- */
+Sortable.create(document.getElementById("stopContainer"), {
+  handle: ".drag-handle",
+  animation: 150
 });
 
-/* ===================== LABEL POSITION HELPER ===================== */
-function updateLabelPosition(index) {
-  const marker = stopMarkers[index];
-  const labelMarker = stopLabels[index];
-  if (!marker || !labelMarker) return;
-  const pos = marker.getLatLng();
-  labelMarker.setLatLng(pos);
-}
-
-/* ===================== ROUTE RECOMPUTE (NO AUTO-ZOOM ON DRAG) ===================== */
-async function recomputeRoute(labels, boxColors) {
-  // Remove old polylines
-  routeLayers.forEach(r => map.removeLayer(r));
-  routeLayers = [];
-
-  const coords = stopMarkers.map(m => {
-    const ll = m.getLatLng();
-    return [ll.lat, ll.lng];
-  });
-  if (coords.length < 2) return;
-
-  for (let i = 0; i < coords.length - 1; i++) {
-    const segment = await computeRouteGoogle(coords[i], coords[i + 1]);
-    if (!segment.length) continue;
-
-    const poly = L.polyline(segment, {
-      color: boxColors[i],
-      weight: 5
-    }).addTo(map);
-    routeLayers.push(poly);
-  }
-}
-
-/* ===================== ROUTE BUTTON ===================== */
-document.getElementById("routeBtn").addEventListener("click", async () => {
+/* ---------------- SHOW ROUTE ---------------- */
+document.getElementById("routeBtn").onclick = async () => {
   try {
-    clearMap();
+    markerGroup.clearLayers();
+    routeGroup.clearLayers();
 
     const rows = [...document.querySelectorAll(".stop-row")];
+
     const coords = [];
     const labels = [];
     const boxColors = [];
     const textColors = [];
 
-    for (let r of rows) {
-      const input = r.querySelector(".address-input");
+    for (let row of rows) {
+      const input = row.querySelector(".address-input");
       const ac = acMap.get(input);
-      const place = ac && ac.getPlace();
+      const place = ac.getPlace();
 
-      if (!place || !place.geometry) {
-        alert("Please select an address from suggestions for every stop.");
+      if (!place?.geometry) {
+        alert("Please pick an address from the suggestions.");
         return;
       }
 
-      coords.push([
-        place.geometry.location.lat(),
-        place.geometry.location.lng()
-      ]);
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      coords.push([lat, lng]);
 
-      labels.push(r.querySelector(".label").value || "Stop");
-      boxColors.push(r.querySelector(".boxColor").value);
-      textColors.push(r.querySelector(".textColor").value);
+      labels.push(row.querySelector(".label-input").value || "Stop");
+      boxColors.push(row.querySelectorAll(".color-input")[0].value);
+      textColors.push(row.querySelectorAll(".color-input")[1].value);
     }
 
-    if (coords.length < 2) {
-      alert("Not enough stops to draw a route.");
-      return;
-    }
+    const mode = document.querySelector("input[name='mode']:checked").value;
 
     const font = document.getElementById("labelFont").value;
     const size = document.getElementById("labelFontSize").value;
 
-    // Create markers + labels
+    /* ---- Add markers + labels ---- */
     coords.forEach((c, i) => {
-      const m = L.marker(c, { draggable: true }).addTo(markerGroup);
-      stopMarkers.push(m);
+      const iconUrl =
+        i === 0 ? "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png" :
+        i === coords.length - 1 ? "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png" :
+        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png";
 
-      const label = L.marker(c, {
+      const mark = L.marker(c, {
+        icon: L.icon({
+          iconUrl,
+          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+          iconSize:[25,41],
+          iconAnchor:[12,41]
+        }),
+        draggable: true
+      }).addTo(markerGroup);
+
+      makeDraggable(mark, i, coords, () => drawRoute());
+
+      L.marker(c, {
         icon: L.divIcon({
           html: `<div class="label-box"
-                     style="background:${boxColors[i]};
-                            color:${textColors[i]};
-                            font-family:${font};
-                            font-size:${size};">
-                    ${labels[i]}
+                   style="background:${boxColors[i]};color:${textColors[i]};
+                          font-family:${font};font-size:${size};">
+                   ${labels[i]}
                  </div>`,
-          className: "",
-          iconSize: [0, 0],
-          iconAnchor: [40, 30]
+          className:"",
+          iconSize:[0,0],
+          iconAnchor:[40,30]
         }),
-        interactive: false
+        interactive:false
       }).addTo(markerGroup);
-      stopLabels.push(label);
-
-      // Live label movement during drag
-      m.on("drag", () => updateLabelPosition(i));
-
-      // Recompute route AFTER drag ends (no auto fit/zoom)
-      m.on("dragend", () => {
-        updateLabelPosition(i);
-        recomputeRoute(labels, boxColors);
-      });
     });
 
-    // Initial route, with fit-to-bounds once
-    routeLayers.forEach(r => map.removeLayer(r));
-    routeLayers = [];
+    async function drawRoute() {
+      routeGroup.clearLayers();
 
-    for (let i = 0; i < coords.length - 1; i++) {
-      const segment = await computeRouteGoogle(coords[i], coords[i + 1]);
-      if (!segment.length) continue;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const r = await googleRoute(coords[i], coords[i+1], mode);
+        const path = r.routes[0].polyline.encodedPolyline;
+        const decoded = L.Polyline.fromEncoded(path).getLatLngs();
+        
+        L.polyline(decoded, {
+          color: boxColors[i],
+          weight: 5,
+          dashArray: mode === "WALKING" ? "6, 10" : null
+        }).addTo(routeGroup);
+      }
 
-      const poly = L.polyline(segment, {
-        color: boxColors[i],
-        weight: 5
-      }).addTo(map);
-      routeLayers.push(poly);
+      refitRoute();
     }
 
-    if (routeLayers.length) {
-      let bounds = L.latLngBounds();
-      routeLayers.forEach(r => bounds.extend(r.getBounds()));
-      map.fitBounds(bounds, { padding: [40, 40] });
-    }
+    await drawRoute();
 
-  } catch (e) {
-    console.error(e);
-    alert("Error: " + e.message);
+  } catch (err) {
+    alert("Error: " + err.message);
+    console.error(err);
   }
-});
+};
+
+/* ---------------- RECENTER ROUTE ---------------- */
+document.getElementById("recenterBtn").onclick = () => refitRoute();
 </script>
+
+<!-- GOOGLE MAPS -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_API_KEY_HERE&libraries=places"></script>
 
 </body>
 </html>
