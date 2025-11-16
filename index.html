@@ -10,17 +10,51 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; }
-    header { background:#0b6fa6; color:white; padding:10px 16px; }
-    #map { height: 70vh; width: 100%; }
+    body { margin: 0; font-family: Arial, sans-serif; }
 
-    .controls {
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+    header {
+      background:#0b6fa6;
+      color:white;
+      padding:10px 16px;
+      position: relative;
+      z-index: 2;
     }
 
+    /* --- Sliding Panel Layout --- */
+    .layout {
+      display: flex;
+      width: 100%;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Left control panel */
+    .controls {
+      width: 330px;
+      min-width: 330px;
+      background: white;
+      padding: 15px;
+      overflow-y: auto;
+      transition: transform 0.4s ease;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+      z-index: 3;
+    }
+
+    /* Panel hidden state */
+    .controls.hidden {
+      transform: translateX(-350px);
+    }
+
+    /* Map takes remaining space */
+    #map {
+      flex: 1;
+      background: #ddd;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Stop row styling */
     .stop-row {
       display: flex;
       flex-wrap: wrap;
@@ -30,11 +64,10 @@
     }
 
     .address-input {
-      width: 320px;
+      width: 260px;
       padding: 8px;
       border-radius: 4px;
-      border: 1px solid #ccc;
-      font-size: 15px;
+      border: 1px solid #bbb;
     }
 
     .stop-row input[type=text] {
@@ -45,17 +78,16 @@
     }
 
     .stop-row input[type=color] {
-      width: 42px;
+      width: 40px;
       height: 40px;
       border: none;
       border-radius: 4px;
-      cursor: pointer;
     }
 
     .stop-row button {
       padding: 8px 12px;
       background:#b22222;
-      color:#fff;
+      color:white;
       border:none;
       border-radius:4px;
       cursor:pointer;
@@ -69,7 +101,7 @@
       border-radius:4px;
       cursor:pointer;
       width: 180px;
-      font-size: 16px;
+      font-size:16px;
     }
 
     .label-box {
@@ -77,9 +109,31 @@
       padding:7px 12px;
       border-radius:8px;
       font-weight:600;
-      white-space:nowrap;
       box-shadow:0 2px 6px rgba(0,0,0,0.3);
-      transform: translateY(-12px);
+      transform:translateY(-12px);
+      white-space:nowrap;
+    }
+
+    /* --- Glass Floating Button --- */
+    .float-toggle {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      padding: 10px 14px;
+      font-size: 22px;
+      cursor: pointer;
+      z-index: 10;
+      border-radius: 12px;
+      backdrop-filter: blur(6px);
+      background: rgba(255,255,255,0.35);
+      color: #000;
+      border: 1px solid rgba(255,255,255,0.5);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+      transition: background 0.2s;
+    }
+
+    .float-toggle:hover {
+      background: rgba(255,255,255,0.55);
     }
   </style>
 </head>
@@ -88,295 +142,222 @@
 
 <header><h2>Multi-Stop Route Planner (Google Routing)</h2></header>
 
-<div class="controls">
-  <div id="stopContainer">
+<div class="layout">
 
-    <!-- START -->
-    <div class="stop-row">
-      <input type="text" class="address-input" placeholder="Start address">
-      <input type="text" class="label" placeholder="Start">
-      <input type="color" class="boxColor" value="#2e8b57">
-      <input type="color" class="textColor" value="#ffffff">
-      <button class="removeStop">✖</button>
+  <!-- Floating glass toggle button -->
+  <div id="panelToggle" class="float-toggle">≡</div>
+
+  <!-- Slide-out panel -->
+  <div id="controlsPanel" class="controls">
+
+    <div id="stopContainer">
+
+      <div class="stop-row">
+        <input class="address-input" placeholder="Start address">
+        <input class="label" placeholder="Start">
+        <input type="color" class="boxColor" value="#2e8b57">
+        <input type="color" class="textColor" value="#ffffff">
+        <button class="removeStop">✖</button>
+      </div>
+
+      <div class="stop-row">
+        <input class="address-input" placeholder="End address">
+        <input class="label" placeholder="End">
+        <input type="color" class="boxColor" value="#b22222">
+        <input type="color" class="textColor" value="#ffffff">
+        <button class="removeStop">✖</button>
+      </div>
+
     </div>
 
-    <!-- END -->
+    <button id="addStopBtn">➕ Add Stop</button>
+
+    <h3>Label Font</h3>
     <div class="stop-row">
-      <input type="text" class="address-input" placeholder="End address">
-      <input type="text" class="label" placeholder="End">
-      <input type="color" class="boxColor" value="#b22222">
-      <input type="color" class="textColor" value="#ffffff">
-      <button class="removeStop">✖</button>
+      <label>Font:</label>
+      <input type="text" id="labelFont" value="Arial">
+      <label>Size:</label>
+      <input type="text" id="labelFontSize" value="14px">
     </div>
 
+    <button id="routeBtn">Show Route</button>
   </div>
 
-  <button id="addStopBtn">➕ Add Stop</button>
-
-  <h3>Label Font Settings</h3>
-  <div class="stop-row">
-    <label>Font:</label>
-    <input type="text" id="labelFont" value="Arial">
-    <label>Size:</label>
-    <input type="text" id="labelFontSize" value="14px">
-  </div>
-
-  <button id="routeBtn">Show Route</button>
+  <div id="map"></div>
 </div>
 
-<div id="map"></div>
+<!-- Leaflet + Script -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
 
 <script>
-/* ---------------- CONFIG ------------------- */
-const GOOGLE_API_KEY = "AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M";
-
-/* --------------- MAP SETUP ----------------- */
-const map = L.map("map").setView([52.5, -1.5], 6);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+let map = L.map("map").setView([52.5,-1.5],6);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
 let markerGroup = L.layerGroup().addTo(map);
 let routeLayers = [];
+let acMap = new Map();
 
-/* --------------- ICONS --------------------- */
-function icon(url) {
-  return L.icon({
-    iconUrl: url,
-    shadowUrl:"https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-    iconSize:[25,41],
-    iconAnchor:[12,41]
-  });
-}
-const iconGreen = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png");
-const iconRed   = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png");
-const iconBlue  = icon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png");
+/* --- Panel Toggle --- */
+const panel = document.getElementById("controlsPanel");
+const toggle = document.getElementById("panelToggle");
 
-/* --------------- GOOGLE AUTOCOMPLETE ---------------- */
-const placeStore = new Map(); // input -> place
+let panelOpen = true;
 
-function attachAutocomplete(input){
-  if(!window.google || !google.maps.places) return;
-
-  const ac = new google.maps.places.Autocomplete(input,{ fields:["geometry"] });
-  google.maps.event.addListener(ac,"place_changed",()=>{
-    placeStore.set(input, ac.getPlace());
-  });
-}
-
-/* --------------- GOOGLE GEOCODE FALLBACK ------------- */
-async function geocodeText(q){
-  const url =
-   `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${GOOGLE_API_KEY}`;
-
-  const r = await fetch(url);
-  const d = await r.json();
-  if(!d.results?.length) return null;
-
-  const loc = d.results[0].geometry.location;
-  return [loc.lat, loc.lng];
-}
-
-/* --------------- GOOGLE ROUTES API (NO TRAFFIC) ------ */
-/* Returns encoded polyline string or null */
-async function requestGoogleRoute(start, end) {
-  const url = "https://routes.googleapis.com/directions/v2:computeRoutes";
-
-  const body = {
-    origin: {
-      location: {
-        latLng: {
-          latitude: start[0],
-          longitude: start[1]
-        }
-      }
-    },
-    destination: {
-      location: {
-        latLng: {
-          latitude: end[0],
-          longitude: end[1]
-        }
-      }
-    },
-    travelMode: "DRIVE",
-    routingPreference: "TRAFFIC_UNAWARE"
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": GOOGLE_API_KEY,
-      "X-Goog-FieldMask": "routes.polyline.encodedPolyline"
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    console.error("Google Routes error:", res.status, await res.text());
-    return null;
+toggle.addEventListener("click", () => {
+  panelOpen = !panelOpen;
+  if (panelOpen) {
+    panel.classList.remove("hidden");
+    toggle.textContent = "≡";
+  } else {
+    panel.classList.add("hidden");
+    toggle.textContent = "▶";
   }
+  setTimeout(() => map.invalidateSize(), 450);
+});
 
-  const data = await res.json();
-  if (!data.routes || !data.routes.length || !data.routes[0].polyline) return null;
-
-  return data.routes[0].polyline.encodedPolyline;
-}
-
-/* --------------- POLYLINE DECODER (Google format) ---- */
-/* Decodes encoded polyline -> array of [lat,lng] */
-function decodePolyline(str) {
-  let index = 0, lat = 0, lng = 0, coords = [];
-  const len = str.length;
-
-  while (index < len) {
-    let b, shift = 0, result = 0;
-    do {
-      b = str.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lat += dlat;
-
-    shift = 0;
-    result = 0;
-    do {
-      b = str.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lng += dlng;
-
-    coords.push([lat / 1e5, lng / 1e5]);
-  }
-  return coords;
-}
-
-/* --------------- CLEAR MAP --------------------------- */
+/* --- Helper Functions --- */
 function clearMap(){
   markerGroup.clearLayers();
   routeLayers.forEach(r=>map.removeLayer(r));
   routeLayers=[];
 }
 
-/* --------------- ADD STOP ROW ------------------------ */
-document.getElementById("addStopBtn").addEventListener("click",()=>{
+function decodePolyline(encoded) {
+  const coords = [];
+  let index=0, lat=0, lng=0;
+
+  while (index < encoded.length) {
+    let b, shift=0, result=0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; }
+    while (b >= 0x20);
+    let dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += dlat;
+
+    shift=0; result=0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; }
+    while (b >= 0x20);
+    let dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += dlng;
+
+    coords.push([lat/1e5, lng/1e5]);
+  }
+  return coords;
+}
+
+async function computeRouteGoogle(start, end){
+  const body = {
+    origin: { location:{ latLng:{ latitude:start[0], longitude:start[1] }}},
+    destination: { location:{ latLng:{ latitude:end[0], longitude:end[1] }}},
+    travelMode: "DRIVE"
+  };
+
+  let res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "X-Goog-Api-Key":"AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
+      "X-Goog-FieldMask":"routes.polyline.encodedPolyline"
+    },
+    body:JSON.stringify(body)
+  });
+
+  let data = await res.json();
+  return decodePolyline(data.routes[0].polyline.encodedPolyline);
+}
+
+/* --- Add Stop Row --- */
+document.getElementById("addStopBtn").addEventListener("click", ()=>{
   const row = document.createElement("div");
-  row.className="stop-row";
+  row.className = "stop-row";
+
   row.innerHTML = `
-    <input type="text" class="address-input" placeholder="Address or postcode">
-    <input type="text" class="label" placeholder="Label">
+    <input class="address-input" placeholder="Address">
+    <input class="label" placeholder="Label">
     <input type="color" class="boxColor" value="#2e8b57">
     <input type="color" class="textColor" value="#ffffff">
     <button class="removeStop">✖</button>
   `;
+
   row.querySelector(".removeStop").addEventListener("click",()=>row.remove());
   document.getElementById("stopContainer").appendChild(row);
-  attachAutocomplete(row.querySelector(".address-input"));
+
+  const input = row.querySelector(".address-input");
+  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+  acMap.set(input, ac);
 });
 
-/* --------------- ROUTE BUTTON ------------------------ */
-document.getElementById("routeBtn").addEventListener("click", async () => {
-  try {
-    clearMap();
+/* --- Initialize autocomplete for default fields --- */
+document.querySelectorAll(".address-input").forEach(input=>{
+  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+  acMap.set(input, ac);
+});
 
-    const rows = [...document.querySelectorAll(".stop-row")];
-    const coords = [];
-    const labels = [];
-    const boxColors = [];
-    const textColors = [];
+/* --- Draw Route --- */
+document.getElementById("routeBtn").addEventListener("click", async ()=>{
+  clearMap();
 
-    for (let row of rows) {
-      const input = row.querySelector(".address-input");
-      if (!input) continue;
+  const rows = [...document.querySelectorAll(".stop-row")];
+  const coords = [];
+  const labels = [];
+  const boxColors = [];
+  const textColors = [];
 
-      const typed = input.value.trim();
-      if (!typed) continue; // ignore empty rows
+  for (let r of rows){
+    const input = r.querySelector(".address-input");
+    const ac = acMap.get(input);
+    const place = ac.getPlace();
 
-      let place = placeStore.get(input);
-      let latLng = null;
-
-      if (place && place.geometry && place.geometry.location) {
-        latLng = [
-          place.geometry.location.lat(),
-          place.geometry.location.lng()
-        ];
-      } else {
-        latLng = await geocodeText(typed);
-      }
-
-      if (!latLng) continue; // skip bad rows
-
-      coords.push(latLng);
-
-      labels.push(row.querySelector(".label")?.value || "Stop");
-      boxColors.push(row.querySelector(".boxColor")?.value || "#2e8b57");
-      textColors.push(row.querySelector(".textColor")?.value || "#ffffff");
-    }
-
-    if (coords.length < 2) {
-      alert("Not enough valid stops to draw a route.");
+    if (!place || !place.geometry){
+      alert("Please select an address from suggestions.");
       return;
     }
 
-    /* DRAW MARKERS + LABELS */
-    const font = document.getElementById("labelFont").value;
-    const size = document.getElementById("labelFontSize").value;
+    coords.push([
+      place.geometry.location.lat(),
+      place.geometry.location.lng()
+    ]);
 
-    coords.forEach((c,i)=>{
-      const ic = i === 0 ? iconGreen : (i === coords.length-1 ? iconRed : iconBlue);
-
-      L.marker(c,{icon:ic}).addTo(markerGroup);
-
-      L.marker(c,{
-        icon: L.divIcon({
-          html: `<div class="label-box"
-                    style="background:${boxColors[i]};
-                           color:${textColors[i]};
-                           font-family:${font};
-                           font-size:${size};">
-                  ${labels[i]}
-                 </div>`,
-          className:"",
-          iconSize:[0,0],
-          iconAnchor:[40,30]
-        }),
-        interactive:false
-      }).addTo(markerGroup);
-    });
-
-    /* DRAW ROUTE SEGMENTS WITH GOOGLE ROUTES */
-    for (let i = 0; i < coords.length - 1; i++) {
-      const encoded = await requestGoogleRoute(coords[i], coords[i+1]);
-      if (!encoded) continue;
-
-      const line = decodePolyline(encoded); // [lat,lng] pairs
-      const seg = L.polyline(line, {
-        color: boxColors[i],
-        weight: 6
-      }).addTo(map);
-
-      routeLayers.push(seg);
-    }
-
-    if (routeLayers.length) {
-      let bounds = L.latLngBounds();
-      routeLayers.forEach(r => bounds.extend(r.getBounds()));
-      map.fitBounds(bounds, { padding:[40,40] });
-    }
-
-  } catch (err) {
-    alert("Error: " + err.message);
-    console.error(err);
+    labels.push(r.querySelector(".label").value || "Stop");
+    boxColors.push(r.querySelector(".boxColor").value);
+    textColors.push(r.querySelector(".textColor").value);
   }
-});
-</script>
 
-<!-- GOOGLE MAPS JS (Places only; routing is via REST above) -->
-<script async
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"
-  onload="document.querySelectorAll('.address-input').forEach(i=>attachAutocomplete(i));">
+  /* Draw markers & labels */
+  coords.forEach((c,i)=>{
+    let marker = L.marker(c).addTo(markerGroup);
+
+    L.marker(c,{
+      icon:L.divIcon({
+        html:`<div class="label-box"
+                   style="background:${boxColors[i]};
+                          color:${textColors[i]};
+                          font-family:${document.getElementById("labelFont").value};
+                          font-size:${document.getElementById("labelFontSize").value};">
+                ${labels[i]}
+              </div>`,
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[40,30]
+      }),
+      interactive:false
+    }).addTo(markerGroup);
+  });
+
+  /* Draw route segments */
+  for (let i=0; i<coords.length-1; i++){
+    let segment = await computeRouteGoogle(coords[i], coords[i+1]);
+    let poly = L.polyline(segment, {
+      color: boxColors[i],
+      weight: 5
+    }).addTo(map);
+    routeLayers.push(poly);
+  }
+
+  /* Fit map */
+  let bounds = L.latLngBounds();
+  routeLayers.forEach(r => bounds.extend(r.getBounds()));
+  map.fitBounds(bounds, {padding:[40,40]});
+});
 </script>
 
 </body>
