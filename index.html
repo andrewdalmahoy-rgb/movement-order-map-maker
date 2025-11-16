@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,7 +8,7 @@
 
   <!-- Google Fonts -->
   <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Lato:wght@400;600&family=Poppins:wght@400;600&display=swap">
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Lato:wght@400;600&family=Poppins:wght@400;600&display=swap">
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -21,9 +22,9 @@
 
     /* Header with toggle + title */
     header {
-      background:#0b6fa6;
-      color:white;
-      padding:14px 16px;
+      background: #0b6fa6;
+      color: white;
+      padding: 14px 16px;
       position: relative;
       z-index: 2;
       display: flex;
@@ -39,7 +40,7 @@
       background: white;
       border: 1px solid #dcdcdc;
       border-radius: 4px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -47,10 +48,6 @@
       font-size: 20px;
       color: #000;
       user-select: none;
-    }
-
-    .header-toggle:hover {
-      background: #f5f5f5;
     }
 
     header h2 {
@@ -75,7 +72,7 @@
       background: white;
       padding: 15px;
       overflow-y: auto;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
       transition: transform 0.35s ease;
       z-index: 3;
       box-sizing: border-box;
@@ -85,7 +82,7 @@
       transform: translateX(-350px);
     }
 
-    /* Map area */
+    /* Map */
     #map {
       flex: 1;
       background: #ccc;
@@ -125,22 +122,23 @@
 
     .stop-row button {
       padding: 8px 12px;
-      background:#b22222;
-      color:white;
-      border:none;
-      border-radius:4px;
-      cursor:pointer;
+      background: #b22222;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
     }
 
-    #addStopBtn, #routeBtn {
+    #addStopBtn,
+    #routeBtn {
       padding: 10px 14px;
-      background:#0b6fa6;
-      color:white;
-      border:none;
-      border-radius:4px;
-      cursor:pointer;
+      background: #0b6fa6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
       width: 180px;
-      font-size:16px;
+      font-size: 16px;
       margin-top: 4px;
     }
 
@@ -154,10 +152,6 @@
       margin-bottom: 12px;
     }
 
-    .font-row label {
-      font-size: 14px;
-    }
-
     .font-row select {
       padding: 5px 8px;
       border-radius: 4px;
@@ -167,18 +161,20 @@
 
     /* Label boxes on map */
     .label-box {
-      display:inline-block;
-      padding:7px 12px;
-      border-radius:8px;
-      font-weight:600;
-      white-space:nowrap;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      display: inline-block;
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
       transform: translateY(-12px);
+      pointer-events: none;
     }
   </style>
 </head>
 
 <body>
+
 
 <header>
   <div id="panelToggle" class="header-toggle">≡</div>
@@ -219,7 +215,7 @@
       <label for="labelFont">Font:</label>
       <select id="labelFont">
         <option value="Roboto" selected>Roboto</option>
-        <option value="Open Sans">Open Sans</option>
+        <option value="Open Sans">Open">Open Sans</option>
         <option value="Montserrat">Montserrat</option>
         <option value="Lato">Lato</option>
         <option value="Poppins">Poppins</option>
@@ -246,24 +242,30 @@
     <button id="routeBtn">Show Route</button>
   </div>
 
-  <!-- Map -->
   <div id="map"></div>
 </div>
 
-<!-- Google Maps JS (Places) -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
+<!-- Google Maps Autocomplete -->
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places">
+</script>
 
 <script>
-/* =================== MAP / GLOBALS =================== */
-let map = L.map("map").setView([52.5,-1.5],6);
+/* ======================================
+   MAP + GLOBALS
+====================================== */
+let map = L.map("map").setView([52.5, -1.5], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
 let markerGroup = L.layerGroup().addTo(map);
 let routeLayers = [];
-let acMap = new Map();      // input -> Autocomplete
-let stopMarkers = [];       // draggable Leaflet markers (one per stop)
+let acMap = new Map();
+let stopMarkers = [];
+let stopLabels = [];
 
-/* =================== PANEL TOGGLE =================== */
+/* ======================================
+   PANEL TOGGLE + MAP RESIZE FIX
+====================================== */
 const panel = document.getElementById("controlsPanel");
 const toggleBtn = document.getElementById("panelToggle");
 let panelOpen = true;
@@ -273,20 +275,35 @@ toggleBtn.addEventListener("click", () => {
   panel.classList.toggle("hidden");
   toggleBtn.textContent = panelOpen ? "≡" : "▶";
 
-  // Allow animation to finish, then force Leaflet to recalc size
+  // Run invalidateSize 3 times for maximum reliability
+  map.invalidateSize(true);
+  setTimeout(() => map.invalidateSize(true), 350);
   setTimeout(() => {
-    map.invalidateSize();
-  }, 400);
+    map.invalidateSize(true);
+    refitRoute();
+  }, 650);
 });
 
-/* =================== GOOGLE HELPERS =================== */
 
+function refitRoute() {
+  if (!routeLayers.length) return;
+  let bounds = L.latLngBounds();
+  routeLayers.forEach(r => bounds.extend(r.getBounds()));
+  map.fitBounds(bounds, { padding: [40, 40] });
+}
+
+/* ======================================
+   GOOGLE HELPERS
+====================================== */
 function decodePolyline(encoded) {
   const coords = [];
-  let index = 0, lat = 0, lng = 0;
+  let index = 0,
+    lat = 0,
+    lng = 0;
 
   while (index < encoded.length) {
-    let b, shift = 0, result = 0;
+    let b, shift = 0,
+      result = 0;
 
     do {
       b = encoded.charCodeAt(index++) - 63;
@@ -294,73 +311,73 @@ function decodePolyline(encoded) {
       shift += 5;
     } while (b >= 0x20);
 
-    const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    let dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
     lat += dlat;
 
     shift = 0;
     result = 0;
+
     do {
       b = encoded.charCodeAt(index++) - 63;
       result |= (b & 0x1f) << shift;
       shift += 5;
     } while (b >= 0x20);
 
-    const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    let dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
     lng += dlng;
 
     coords.push([lat / 1e5, lng / 1e5]);
   }
+
   return coords;
 }
 
-async function computeRouteGoogle(start, end){
+async function computeRouteGoogle(start, end) {
   const body = {
-    origin: { location: { latLng: { latitude:start[0], longitude:start[1] }}},
-    destination: { location: { latLng: { latitude:end[0], longitude:end[1] }}},
+    origin: { location: { latLng: { latitude: start[0], longitude: start[1] } } },
+    destination: { location: { latLng: { latitude: end[0], longitude: end[1] } } },
     travelMode: "DRIVE"
   };
 
   let res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
     method: "POST",
     headers: {
-      "Content-Type":"application/json",
-      "X-Goog-Api-Key":"AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
-      "X-Goog-FieldMask":"routes.polyline.encodedPolyline"
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": "AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
+      "X-Goog-FieldMask": "routes.polyline.encodedPolyline"
     },
     body: JSON.stringify(body)
   });
 
   let data = await res.json();
-  if (!data.routes || !data.routes.length || !data.routes[0].polyline) {
-    console.error("No routes in Google response", data);
-    return [];
-  }
+  if (!data.routes || !data.routes.length) return [];
   return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
 
-/* =================== AUTOCOMPLETE =================== */
-
-function attachAutocompleteToInput(input){
-  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+/* ======================================
+   AUTOCOMPLETE SETUP
+====================================== */
+function attachAutocomplete(input) {
+  const ac = new google.maps.places.Autocomplete(input, { fields: ["geometry"] });
   acMap.set(input, ac);
 }
 
-/* Attach to initial inputs */
-document.querySelectorAll(".address-input").forEach(input => {
-  attachAutocompleteToInput(input);
-});
+document.querySelectorAll(".address-input").forEach(attachAutocomplete);
 
-/* =================== MAP CLEARING =================== */
-
-function clearMap(){
+/* ======================================
+   MAP CLEANUP
+====================================== */
+function clearMap() {
   markerGroup.clearLayers();
+  stopMarkers = [];
+  stopLabels = [];
   routeLayers.forEach(r => map.removeLayer(r));
   routeLayers = [];
-  stopMarkers = [];
 }
 
-/* =================== ADD STOP ROW =================== */
-
+/* ======================================
+   ADD STOP ROW
+====================================== */
 document.getElementById("addStopBtn").addEventListener("click", () => {
   const row = document.createElement("div");
   row.className = "stop-row";
@@ -373,21 +390,36 @@ document.getElementById("addStopBtn").addEventListener("click", () => {
     <button class="removeStop">✖</button>
   `;
 
-  row.querySelector(".removeStop").addEventListener("click", () => row.remove());
+  row.querySelector(".removeStop").addEventListener("click", () =>
+    row.remove()
+  );
+
   document.getElementById("stopContainer").appendChild(row);
 
   const input = row.querySelector(".address-input");
-  attachAutocompleteToInput(input);
+  attachAutocomplete(input);
 });
 
-/* =================== ROUTE DRAWING =================== */
+/* ======================================
+   LIVE LABEL UPDATER
+====================================== */
+function updateLabelPosition(index) {
+  let m = stopMarkers[index];
+  let labelMarker = stopLabels[index];
 
-async function recomputeRouteFromMarkers(labels, boxColors, textColors) {
-  // Remove existing polylines
+  if (!m || !labelMarker) return;
+
+  let pos = m.getLatLng();
+  labelMarker.setLatLng([pos.lat, pos.lng]);
+}
+
+/* ======================================
+   ROUTE RECOMPUTE FROM CURRENT MARKERS
+====================================== */
+async function recomputeRoute(labels, boxColors, textColors) {
   routeLayers.forEach(r => map.removeLayer(r));
   routeLayers = [];
 
-  // Build coords from current marker positions
   const coords = stopMarkers.map(m => {
     const ll = m.getLatLng();
     return [ll.lat, ll.lng];
@@ -396,24 +428,23 @@ async function recomputeRouteFromMarkers(labels, boxColors, textColors) {
   if (coords.length < 2) return;
 
   for (let i = 0; i < coords.length - 1; i++) {
-    const segment = await computeRouteGoogle(coords[i], coords[i+1]);
+    const segment = await computeRouteGoogle(coords[i], coords[i + 1]);
     if (!segment.length) continue;
 
-    const poly = L.polyline(segment, {
+    const line = L.polyline(segment, {
       color: boxColors[i],
-      weight: 5
+      weight: 6
     }).addTo(map);
 
-    routeLayers.push(poly);
+    routeLayers.push(line);
   }
 
-  if (routeLayers.length) {
-    let bounds = L.latLngBounds();
-    routeLayers.forEach(r => bounds.extend(r.getBounds()));
-    map.fitBounds(bounds, { padding:[40,40] });
-  }
+  refitRoute();
 }
 
+/* ======================================
+   BUILD ROUTE BUTTON
+====================================== */
 document.getElementById("routeBtn").addEventListener("click", async () => {
   try {
     clearMap();
@@ -426,14 +457,11 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
 
     for (let r of rows) {
       const input = r.querySelector(".address-input");
-      if (!input) continue;
-
       const ac = acMap.get(input);
-      if (!ac) continue;
-
       const place = ac.getPlace();
+
       if (!place || !place.geometry) {
-        alert("Please select an address from the dropdown suggestions for every stop.");
+        alert("Please select an address from suggestions for every stop.");
         return;
       }
 
@@ -447,50 +475,50 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
       textColors.push(r.querySelector(".textColor").value);
     }
 
-    if (coords.length < 2) {
-      alert("Not enough valid stops to draw a route.");
-      return;
-    }
+    if (coords.length < 2) return;
 
-    const fontFamily = document.getElementById("labelFont").value;
-    const fontSize = document.getElementById("labelFontSize").value;
+    const font = document.getElementById("labelFont").value;
+    const size = document.getElementById("labelFontSize").value;
 
-    // Draw draggable markers + labels
-    stopMarkers = [];
-    coords.forEach((c,i) => {
-      const m = L.marker(c, { draggable:true }).addTo(markerGroup);
+    // CREATE DRAGGABLE MARKERS + LABELS
+    coords.forEach((c, i) => {
+      const m = L.marker(c, { draggable: true }).addTo(markerGroup);
       stopMarkers.push(m);
 
-      // Label marker (non-draggable)
-      L.marker(c, {
+      const label = L.marker(c, {
         icon: L.divIcon({
           html: `<div class="label-box"
-                     style="background:${boxColors[i]};
-                            color:${textColors[i]};
-                            font-family:${fontFamily};
-                            font-size:${fontSize};">
-                   ${labels[i]}
+                      style="background:${boxColors[i]};
+                             color:${textColors[i]};
+                             font-family:${font};
+                             font-size:${size};">
+                    ${labels[i]}
                  </div>`,
           className: "",
-          iconSize: [0,0],
-          iconAnchor: [40,30]
+          iconSize: [0, 0],
+          iconAnchor: [40, 30]
         }),
         interactive: false
       }).addTo(markerGroup);
 
-      // On drag end, recompute the route
+      stopLabels.push(label);
+
+      // Live label movement while dragging
+      m.on("drag", () => updateLabelPosition(i));
+
+      // Route recompute after drag ends
       m.on("dragend", () => {
-        // Recompute route using updated marker positions
-        recomputeRouteFromMarkers(labels, boxColors, textColors);
+        updateLabelPosition(i);
+        recomputeRoute(labels, boxColors, textColors);
       });
     });
 
     // Initial route
-    await recomputeRouteFromMarkers(labels, boxColors, textColors);
+    await recomputeRoute(labels, boxColors, textColors);
 
-  } catch (err) {
-    console.error(err);
-    alert("Error: " + err.message);
+  } catch (e) {
+    alert("Error: " + e.message);
+    console.error(e);
   }
 });
 </script>
