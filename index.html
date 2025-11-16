@@ -20,7 +20,7 @@
       z-index: 2;
     }
 
-    /* --- Sliding Panel Layout --- */
+    /* --- Layout --- */
     .layout {
       display: flex;
       width: 100%;
@@ -29,32 +29,32 @@
       position: relative;
     }
 
-    /* Left control panel */
+    /* Left panel */
     .controls {
       width: 330px;
       min-width: 330px;
       background: white;
       padding: 15px;
       overflow-y: auto;
-      transition: transform 0.4s ease;
       box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+      transition: transform 0.35s ease;
       z-index: 3;
     }
 
-    /* Panel hidden state */
+    /* Hidden state */
     .controls.hidden {
       transform: translateX(-350px);
     }
 
-    /* Map takes remaining space */
+    /* Map */
     #map {
       flex: 1;
-      background: #ddd;
+      background: #ccc;
       position: relative;
       z-index: 1;
     }
 
-    /* Stop row styling */
+    /* Stop rows */
     .stop-row {
       display: flex;
       flex-wrap: wrap;
@@ -67,7 +67,7 @@
       width: 260px;
       padding: 8px;
       border-radius: 4px;
-      border: 1px solid #bbb;
+      border: 1px solid #aaa;
     }
 
     .stop-row input[type=text] {
@@ -78,7 +78,7 @@
     }
 
     .stop-row input[type=color] {
-      width: 40px;
+      width: 42px;
       height: 40px;
       border: none;
       border-radius: 4px;
@@ -104,36 +104,40 @@
       font-size:16px;
     }
 
+    /* Labels */
     .label-box {
       display:inline-block;
       padding:7px 12px;
       border-radius:8px;
       font-weight:600;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-      transform:translateY(-12px);
       white-space:nowrap;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      transform: translateY(-12px);
     }
 
-    /* --- Glass Floating Button --- */
+    /* --- Classic Google-style floating button --- */
     .float-toggle {
       position: absolute;
       top: 20px;
       left: 20px;
-      padding: 10px 14px;
-      font-size: 22px;
+      width: 38px;
+      height: 38px;
+      background: white;
+      border: 1px solid #dcdcdc;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
       cursor: pointer;
-      z-index: 10;
-      border-radius: 12px;
-      backdrop-filter: blur(6px);
-      background: rgba(255,255,255,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
       color: #000;
-      border: 1px solid rgba(255,255,255,0.5);
-      box-shadow: 0 3px 10px rgba(0,0,0,0.25);
-      transition: background 0.2s;
+      user-select: none;
+      z-index: 10;
     }
 
     .float-toggle:hover {
-      background: rgba(255,255,255,0.55);
+      background: #f5f5f5;
     }
   </style>
 </head>
@@ -144,14 +148,15 @@
 
 <div class="layout">
 
-  <!-- Floating glass toggle button -->
+  <!-- Floating toggle button -->
   <div id="panelToggle" class="float-toggle">≡</div>
 
-  <!-- Slide-out panel -->
+  <!-- Left control panel -->
   <div id="controlsPanel" class="controls">
 
     <div id="stopContainer">
 
+      <!-- Start row -->
       <div class="stop-row">
         <input class="address-input" placeholder="Start address">
         <input class="label" placeholder="Start">
@@ -160,6 +165,7 @@
         <button class="removeStop">✖</button>
       </div>
 
+      <!-- End row -->
       <div class="stop-row">
         <input class="address-input" placeholder="End address">
         <input class="label" placeholder="End">
@@ -186,7 +192,7 @@
   <div id="map"></div>
 </div>
 
-<!-- Leaflet + Script -->
+<!-- Google Maps API -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
 
 <script>
@@ -197,7 +203,7 @@ let markerGroup = L.layerGroup().addTo(map);
 let routeLayers = [];
 let acMap = new Map();
 
-/* --- Panel Toggle --- */
+/* Panel toggle */
 const panel = document.getElementById("controlsPanel");
 const toggle = document.getElementById("panelToggle");
 
@@ -205,53 +211,41 @@ let panelOpen = true;
 
 toggle.addEventListener("click", () => {
   panelOpen = !panelOpen;
-  if (panelOpen) {
-    panel.classList.remove("hidden");
-    toggle.textContent = "≡";
-  } else {
-    panel.classList.add("hidden");
-    toggle.textContent = "▶";
-  }
-  setTimeout(() => map.invalidateSize(), 450);
+  panel.classList.toggle("hidden");
+  toggle.textContent = panelOpen ? "≡" : "▶";
+  setTimeout(() => map.invalidateSize(), 350);
 });
 
-/* --- Helper Functions --- */
-function clearMap(){
-  markerGroup.clearLayers();
-  routeLayers.forEach(r=>map.removeLayer(r));
-  routeLayers=[];
-}
-
+/* Polyline decoder */
 function decodePolyline(encoded) {
-  const coords = [];
-  let index=0, lat=0, lng=0;
+  const coords=[];
+  let index=0,lat=0,lng=0;
 
   while (index < encoded.length) {
-    let b, shift=0, result=0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; }
-    while (b >= 0x20);
-    let dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lat += dlat;
+    let b,shift=0,result=0;
+    do {b=encoded.charCodeAt(index++)-63;result|=(b&0x1f)<<shift;shift+=5;} while (b>=0x20);
+    let dlat=(result&1)?~(result>>1):(result>>1);
+    lat+=dlat;
 
-    shift=0; result=0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; }
-    while (b >= 0x20);
-    let dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
-    lng += dlng;
+    shift=0;result=0;
+    do {b=encoded.charCodeAt(index++)-63;result|=(b&0x1f)<<shift;shift+=5;} while (b>=0x20);
+    let dlng=(result&1)?~(result>>1):(result>>1);
+    lng+=dlng;
 
-    coords.push([lat/1e5, lng/1e5]);
+    coords.push([lat/1e5,lng/1e5]);
   }
   return coords;
 }
 
-async function computeRouteGoogle(start, end){
-  const body = {
-    origin: { location:{ latLng:{ latitude:start[0], longitude:start[1] }}},
-    destination: { location:{ latLng:{ latitude:end[0], longitude:end[1] }}},
-    travelMode: "DRIVE"
+/* Compute route using Google Routes API */
+async function computeRouteGoogle(start,end){
+  const body={
+    origin:{location:{latLng:{latitude:start[0],longitude:start[1]}}},
+    destination:{location:{latLng:{latitude:end[0],longitude:end[1]}}},
+    travelMode:"DRIVE"
   };
 
-  let res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+  let res=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
     method:"POST",
     headers:{
       "Content-Type":"application/json",
@@ -261,16 +255,16 @@ async function computeRouteGoogle(start, end){
     body:JSON.stringify(body)
   });
 
-  let data = await res.json();
+  let data=await res.json();
   return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
 
-/* --- Add Stop Row --- */
-document.getElementById("addStopBtn").addEventListener("click", ()=>{
-  const row = document.createElement("div");
-  row.className = "stop-row";
+/* Add stop row */
+document.getElementById("addStopBtn").addEventListener("click",()=>{
+  const row=document.createElement("div");
+  row.className="stop-row";
 
-  row.innerHTML = `
+  row.innerHTML=`
     <input class="address-input" placeholder="Address">
     <input class="label" placeholder="Label">
     <input type="color" class="boxColor" value="#2e8b57">
@@ -281,31 +275,38 @@ document.getElementById("addStopBtn").addEventListener("click", ()=>{
   row.querySelector(".removeStop").addEventListener("click",()=>row.remove());
   document.getElementById("stopContainer").appendChild(row);
 
-  const input = row.querySelector(".address-input");
-  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
-  acMap.set(input, ac);
+  const input=row.querySelector(".address-input");
+  const ac=new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+  acMap.set(input,ac);
 });
 
-/* --- Initialize autocomplete for default fields --- */
+/* Attach autocomplete to initial inputs */
 document.querySelectorAll(".address-input").forEach(input=>{
-  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
-  acMap.set(input, ac);
+  const ac=new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+  acMap.set(input,ac);
 });
 
-/* --- Draw Route --- */
+/* Clear map layers */
+function clearMap(){
+  markerGroup.clearLayers();
+  routeLayers.forEach(r=>map.removeLayer(r));
+  routeLayers=[];
+}
+
+/* Draw route */
 document.getElementById("routeBtn").addEventListener("click", async ()=>{
   clearMap();
 
-  const rows = [...document.querySelectorAll(".stop-row")];
-  const coords = [];
-  const labels = [];
-  const boxColors = [];
-  const textColors = [];
+  const rows=[...document.querySelectorAll(".stop-row")];
+  const coords=[];
+  const labels=[];
+  const boxColors=[];
+  const textColors=[];
 
   for (let r of rows){
-    const input = r.querySelector(".address-input");
-    const ac = acMap.get(input);
-    const place = ac.getPlace();
+    const input=r.querySelector(".address-input");
+    const ac=acMap.get(input);
+    const place=ac.getPlace();
 
     if (!place || !place.geometry){
       alert("Please select an address from suggestions.");
@@ -322,17 +323,17 @@ document.getElementById("routeBtn").addEventListener("click", async ()=>{
     textColors.push(r.querySelector(".textColor").value);
   }
 
-  /* Draw markers & labels */
+  /* Markers + labels */
   coords.forEach((c,i)=>{
-    let marker = L.marker(c).addTo(markerGroup);
+    L.marker(c).addTo(markerGroup);
 
     L.marker(c,{
       icon:L.divIcon({
         html:`<div class="label-box"
-                   style="background:${boxColors[i]};
-                          color:${textColors[i]};
-                          font-family:${document.getElementById("labelFont").value};
-                          font-size:${document.getElementById("labelFontSize").value};">
+               style="background:${boxColors[i]};
+                      color:${textColors[i]};
+                      font-family:${document.getElementById("labelFont").value};
+                      font-size:${document.getElementById("labelFontSize").value};">
                 ${labels[i]}
               </div>`,
         className:"",
@@ -343,20 +344,21 @@ document.getElementById("routeBtn").addEventListener("click", async ()=>{
     }).addTo(markerGroup);
   });
 
-  /* Draw route segments */
-  for (let i=0; i<coords.length-1; i++){
-    let segment = await computeRouteGoogle(coords[i], coords[i+1]);
-    let poly = L.polyline(segment, {
+  /* Route segments */
+  for (let i=0;i<coords.length-1;i++){
+    let seg=await computeRouteGoogle(coords[i],coords[i+1]);
+    let poly=L.polyline(seg,{
       color: boxColors[i],
       weight: 5
     }).addTo(map);
+
     routeLayers.push(poly);
   }
 
-  /* Fit map */
-  let bounds = L.latLngBounds();
-  routeLayers.forEach(r => bounds.extend(r.getBounds()));
-  map.fitBounds(bounds, {padding:[40,40]});
+  /* Fit to route */
+  let bounds=L.latLngBounds();
+  routeLayers.forEach(r=>bounds.extend(r.getBounds()));
+  map.fitBounds(bounds,{padding:[40,40]});
 });
 </script>
 
