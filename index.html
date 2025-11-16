@@ -15,16 +15,21 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
   <style>
+    html,
     body {
       margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
       font-family: Roboto, Arial, sans-serif;
     }
 
-    /* Header with toggle + title */
+    /* Header with toggle + title + layer buttons */
     header {
       background: #0b6fa6;
       color: white;
-      padding: 14px 16px;
+      padding: 12px 16px;
       position: relative;
       z-index: 2;
       display: flex;
@@ -32,6 +37,13 @@
       gap: 12px;
       box-sizing: border-box;
       min-height: 60px;
+      justify-content: space-between;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .header-toggle {
@@ -50,36 +62,61 @@
       user-select: none;
     }
 
+    .header-toggle:hover {
+      background: #f5f5f5;
+    }
+
     header h2 {
       margin: 0;
       font-size: 20px;
       font-weight: 600;
     }
 
-    /* Layout */
-    .layout {
+    .layer-buttons {
       display: flex;
-      width: 100%;
-      height: calc(100vh - 60px);
+      gap: 6px;
+      align-items: center;
+    }
+
+    .layer-btn {
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      cursor: pointer;
+    }
+
+    .layer-btn.active {
+      background: white;
+      color: #0b6fa6;
+      border-color: white;
+    }
+
+    /* Layout container fills below the header */
+    .layout {
+      position: absolute;
+      top: 60px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
       overflow: hidden;
-      position: relative;
     }
 
     /* Left panel */
     .controls {
       width: 330px;
-      min-width: 330px;
       background: white;
       padding: 15px;
       overflow-y: auto;
       box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-      transition: transform 0.35s ease;
-      z-index: 3;
       box-sizing: border-box;
     }
 
     .controls.hidden {
-      transform: translateX(-350px);
+      display: none;
     }
 
     /* Map */
@@ -142,7 +179,7 @@
       margin-top: 4px;
     }
 
-    /* Label font controls */
+    /* Font controls */
     .font-row {
       display: flex;
       flex-wrap: wrap;
@@ -159,7 +196,7 @@
       font-size: 14px;
     }
 
-    /* Label boxes on map */
+    /* Labels on map */
     .label-box {
       display: inline-block;
       padding: 7px 12px;
@@ -175,14 +212,18 @@
 
 <body>
 
-
 <header>
-  <div id="panelToggle" class="header-toggle">≡</div>
-  <h2>Movement Order Map Maker</h2>
+  <div class="header-left">
+    <div id="panelToggle" class="header-toggle">≡</div>
+    <h2>Movement Order Map Maker</h2>
+  </div>
+  <div class="layer-buttons">
+    <button id="mapLayerBtn" class="layer-btn active">Map</button>
+    <button id="satLayerBtn" class="layer-btn">Satellite</button>
+  </div>
 </header>
 
 <div class="layout">
-
   <!-- Left control panel -->
   <div id="controlsPanel" class="controls">
 
@@ -215,7 +256,7 @@
       <label for="labelFont">Font:</label>
       <select id="labelFont">
         <option value="Roboto" selected>Roboto</option>
-        <option value="Open Sans">Open">Open Sans</option>
+        <option value="Open Sans">Open Sans</option>
         <option value="Montserrat">Montserrat</option>
         <option value="Lato">Lato</option>
         <option value="Poppins">Poppins</option>
@@ -242,20 +283,30 @@
     <button id="routeBtn">Show Route</button>
   </div>
 
+  <!-- Map -->
   <div id="map"></div>
 </div>
 
-<!-- Google Maps Autocomplete -->
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places">
-</script>
+<!-- Google Maps JS (Places only) -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
 
 <script>
-/* ======================================
-   MAP + GLOBALS
-====================================== */
+/* ===================== MAP + BASE LAYERS ===================== */
 let map = L.map("map").setView([52.5, -1.5], 6);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
+
+const satellite = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 19,
+    attribution: "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+  }
+);
+
+let currentBase = streets;
 
 let markerGroup = L.layerGroup().addTo(map);
 let routeLayers = [];
@@ -263,72 +314,76 @@ let acMap = new Map();
 let stopMarkers = [];
 let stopLabels = [];
 
-/* ======================================
-   PANEL TOGGLE + MAP RESIZE FIX
-====================================== */
+/* ===================== PANEL TOGGLE ===================== */
 const panel = document.getElementById("controlsPanel");
 const toggleBtn = document.getElementById("panelToggle");
 let panelOpen = true;
 
 toggleBtn.addEventListener("click", () => {
   panelOpen = !panelOpen;
-  panel.classList.toggle("hidden");
-  toggleBtn.textContent = panelOpen ? "≡" : "▶";
-
-  // Run invalidateSize 3 times for maximum reliability
-  map.invalidateSize(true);
-  setTimeout(() => map.invalidateSize(true), 350);
+  if (panelOpen) {
+    panel.classList.remove("hidden");
+  } else {
+    panel.classList.add("hidden");
+  }
+  // Let layout settle, then fix map size
   setTimeout(() => {
     map.invalidateSize(true);
-    refitRoute();
-  }, 650);
+  }, 150);
 });
 
+/* ===================== LAYER TOGGLE (MAP / SATELLITE) ===================== */
+const mapLayerBtn = document.getElementById("mapLayerBtn");
+const satLayerBtn = document.getElementById("satLayerBtn");
 
-function refitRoute() {
-  if (!routeLayers.length) return;
-  let bounds = L.latLngBounds();
-  routeLayers.forEach(r => bounds.extend(r.getBounds()));
-  map.fitBounds(bounds, { padding: [40, 40] });
+function setBaseLayer(layer) {
+  if (currentBase) {
+    map.removeLayer(currentBase);
+  }
+  currentBase = layer;
+  currentBase.addTo(map);
+  map.invalidateSize(true);
 }
 
-/* ======================================
-   GOOGLE HELPERS
-====================================== */
+mapLayerBtn.addEventListener("click", () => {
+  mapLayerBtn.classList.add("active");
+  satLayerBtn.classList.remove("active");
+  setBaseLayer(streets);
+});
+
+satLayerBtn.addEventListener("click", () => {
+  satLayerBtn.classList.add("active");
+  mapLayerBtn.classList.remove("active");
+  setBaseLayer(satellite);
+});
+
+/* ===================== GOOGLE HELPERS ===================== */
 function decodePolyline(encoded) {
   const coords = [];
-  let index = 0,
-    lat = 0,
-    lng = 0;
+  let index = 0, lat = 0, lng = 0;
 
   while (index < encoded.length) {
-    let b, shift = 0,
-      result = 0;
-
+    let b, shift = 0, result = 0;
     do {
       b = encoded.charCodeAt(index++) - 63;
       result |= (b & 0x1f) << shift;
       shift += 5;
     } while (b >= 0x20);
-
     let dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
     lat += dlat;
 
     shift = 0;
     result = 0;
-
     do {
       b = encoded.charCodeAt(index++) - 63;
       result |= (b & 0x1f) << shift;
       shift += 5;
     } while (b >= 0x20);
-
     let dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
     lng += dlng;
 
     coords.push([lat / 1e5, lng / 1e5]);
   }
-
   return coords;
 }
 
@@ -350,13 +405,11 @@ async function computeRouteGoogle(start, end) {
   });
 
   let data = await res.json();
-  if (!data.routes || !data.routes.length) return [];
+  if (!data.routes || !data.routes.length || !data.routes[0].polyline) return [];
   return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
 
-/* ======================================
-   AUTOCOMPLETE SETUP
-====================================== */
+/* ===================== AUTOCOMPLETE ===================== */
 function attachAutocomplete(input) {
   const ac = new google.maps.places.Autocomplete(input, { fields: ["geometry"] });
   acMap.set(input, ac);
@@ -364,20 +417,16 @@ function attachAutocomplete(input) {
 
 document.querySelectorAll(".address-input").forEach(attachAutocomplete);
 
-/* ======================================
-   MAP CLEANUP
-====================================== */
+/* ===================== MAP CLEARING ===================== */
 function clearMap() {
   markerGroup.clearLayers();
-  stopMarkers = [];
-  stopLabels = [];
   routeLayers.forEach(r => map.removeLayer(r));
   routeLayers = [];
+  stopMarkers = [];
+  stopLabels = [];
 }
 
-/* ======================================
-   ADD STOP ROW
-====================================== */
+/* ===================== ADD STOP ROW ===================== */
 document.getElementById("addStopBtn").addEventListener("click", () => {
   const row = document.createElement("div");
   row.className = "stop-row";
@@ -390,33 +439,25 @@ document.getElementById("addStopBtn").addEventListener("click", () => {
     <button class="removeStop">✖</button>
   `;
 
-  row.querySelector(".removeStop").addEventListener("click", () =>
-    row.remove()
-  );
-
+  row.querySelector(".removeStop").addEventListener("click", () => row.remove());
   document.getElementById("stopContainer").appendChild(row);
 
   const input = row.querySelector(".address-input");
   attachAutocomplete(input);
 });
 
-/* ======================================
-   LIVE LABEL UPDATER
-====================================== */
+/* ===================== LABEL POSITION HELPER ===================== */
 function updateLabelPosition(index) {
-  let m = stopMarkers[index];
-  let labelMarker = stopLabels[index];
-
-  if (!m || !labelMarker) return;
-
-  let pos = m.getLatLng();
-  labelMarker.setLatLng([pos.lat, pos.lng]);
+  const marker = stopMarkers[index];
+  const labelMarker = stopLabels[index];
+  if (!marker || !labelMarker) return;
+  const pos = marker.getLatLng();
+  labelMarker.setLatLng(pos);
 }
 
-/* ======================================
-   ROUTE RECOMPUTE FROM CURRENT MARKERS
-====================================== */
-async function recomputeRoute(labels, boxColors, textColors) {
+/* ===================== ROUTE RECOMPUTE (NO AUTO-ZOOM ON DRAG) ===================== */
+async function recomputeRoute(labels, boxColors) {
+  // Remove old polylines
   routeLayers.forEach(r => map.removeLayer(r));
   routeLayers = [];
 
@@ -424,27 +465,21 @@ async function recomputeRoute(labels, boxColors, textColors) {
     const ll = m.getLatLng();
     return [ll.lat, ll.lng];
   });
-
   if (coords.length < 2) return;
 
   for (let i = 0; i < coords.length - 1; i++) {
     const segment = await computeRouteGoogle(coords[i], coords[i + 1]);
     if (!segment.length) continue;
 
-    const line = L.polyline(segment, {
+    const poly = L.polyline(segment, {
       color: boxColors[i],
-      weight: 6
+      weight: 5
     }).addTo(map);
-
-    routeLayers.push(line);
+    routeLayers.push(poly);
   }
-
-  refitRoute();
 }
 
-/* ======================================
-   BUILD ROUTE BUTTON
-====================================== */
+/* ===================== ROUTE BUTTON ===================== */
 document.getElementById("routeBtn").addEventListener("click", async () => {
   try {
     clearMap();
@@ -458,7 +493,7 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
     for (let r of rows) {
       const input = r.querySelector(".address-input");
       const ac = acMap.get(input);
-      const place = ac.getPlace();
+      const place = ac && ac.getPlace();
 
       if (!place || !place.geometry) {
         alert("Please select an address from suggestions for every stop.");
@@ -475,12 +510,15 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
       textColors.push(r.querySelector(".textColor").value);
     }
 
-    if (coords.length < 2) return;
+    if (coords.length < 2) {
+      alert("Not enough stops to draw a route.");
+      return;
+    }
 
     const font = document.getElementById("labelFont").value;
     const size = document.getElementById("labelFontSize").value;
 
-    // CREATE DRAGGABLE MARKERS + LABELS
+    // Create markers + labels
     coords.forEach((c, i) => {
       const m = L.marker(c, { draggable: true }).addTo(markerGroup);
       stopMarkers.push(m);
@@ -488,10 +526,10 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
       const label = L.marker(c, {
         icon: L.divIcon({
           html: `<div class="label-box"
-                      style="background:${boxColors[i]};
-                             color:${textColors[i]};
-                             font-family:${font};
-                             font-size:${size};">
+                     style="background:${boxColors[i]};
+                            color:${textColors[i]};
+                            font-family:${font};
+                            font-size:${size};">
                     ${labels[i]}
                  </div>`,
           className: "",
@@ -500,25 +538,42 @@ document.getElementById("routeBtn").addEventListener("click", async () => {
         }),
         interactive: false
       }).addTo(markerGroup);
-
       stopLabels.push(label);
 
-      // Live label movement while dragging
+      // Live label movement during drag
       m.on("drag", () => updateLabelPosition(i));
 
-      // Route recompute after drag ends
+      // Recompute route AFTER drag ends (no auto fit/zoom)
       m.on("dragend", () => {
         updateLabelPosition(i);
-        recomputeRoute(labels, boxColors, textColors);
+        recomputeRoute(labels, boxColors);
       });
     });
 
-    // Initial route
-    await recomputeRoute(labels, boxColors, textColors);
+    // Initial route, with fit-to-bounds once
+    routeLayers.forEach(r => map.removeLayer(r));
+    routeLayers = [];
+
+    for (let i = 0; i < coords.length - 1; i++) {
+      const segment = await computeRouteGoogle(coords[i], coords[i + 1]);
+      if (!segment.length) continue;
+
+      const poly = L.polyline(segment, {
+        color: boxColors[i],
+        weight: 5
+      }).addTo(map);
+      routeLayers.push(poly);
+    }
+
+    if (routeLayers.length) {
+      let bounds = L.latLngBounds();
+      routeLayers.forEach(r => bounds.extend(r.getBounds()));
+      map.fitBounds(bounds, { padding: [40, 40] });
+    }
 
   } catch (e) {
-    alert("Error: " + e.message);
     console.error(e);
+    alert("Error: " + e.message);
   }
 });
 </script>
