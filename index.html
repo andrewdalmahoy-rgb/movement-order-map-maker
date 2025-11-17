@@ -41,7 +41,7 @@
       z-index:1;
     }
 
-    /* Keep Leaflet controls above map but below sidebar */
+    /* Keep Leaflet controls above the map but below the sidebar */
     .leaflet-control-container {
       z-index: 500;
     }
@@ -63,12 +63,7 @@
     .route-row {
       display:grid;
       grid-template-columns: 28px 1fr;
-      grid-template-areas:
-        "handle start"
-        ". end"
-        ". label"
-        ". colors"
-        ". buttons";
+      grid-template-areas: "handle main";
       gap:6px 10px;
       padding:10px;
       margin-bottom:10px;
@@ -85,22 +80,41 @@
       padding-top:4px;
     }
 
-    .start-input,
-    .end-input,
-    .label-input {
-      padding:7px;
-      width:100%;
+    .route-main {
+      grid-area:main;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .point-row {
+      display:grid;
+      grid-template-columns: 70px 1fr 1fr;
+      grid-template-areas: "label addr lbl";
+      column-gap:6px;
+      align-items:center;
+    }
+
+    .point-label {
+      grid-area:label;
+      font-size:13px;
+      font-weight:bold;
+    }
+
+    .addr-input,
+    .name-input {
+      padding:6px;
       border-radius:4px;
       border:1px solid #aaa;
+      font-size:13px;
+      width:100%;
       box-sizing:border-box;
     }
 
-    .start-input { grid-area:start; }
-    .end-input   { grid-area:end; }
-    .label-input { grid-area:label; }
+    .addr-input { grid-area:addr; }
+    .name-input { grid-area:lbl; }
 
     .color-row {
-      grid-area:colors;
       display:flex;
       gap:10px;
       align-items:center;
@@ -117,7 +131,6 @@
     }
 
     .buttons-row {
-      grid-area:buttons;
       display:flex;
       justify-content:flex-end;
       gap:8px;
@@ -304,8 +317,9 @@ document.getElementById("satToggle").addEventListener("click",()=>{
 });
 
 /* ======================== AUTOCOMPLETE ======================== */
-const startAc = new Map();
-const endAc   = new Map();
+const startAcMap = new Map();
+const endAcMap   = new Map();
+
 function attachAC(input, mapObj){
   const ac=new google.maps.places.Autocomplete(input,{fields:["geometry"]});
   mapObj.set(input,ac);
@@ -313,7 +327,7 @@ function attachAC(input, mapObj){
 
 /* ======================== ROUTES MODEL ======================== */
 let routes = [];
-let nextId = 1;
+let nextRouteId = 1;
 const routeContainer = document.getElementById("routeContainer");
 
 function makeMarker(color){
@@ -330,82 +344,96 @@ function makeMarker(color){
   });
 }
 
-function createRouteRow(label="Route"){
-  const row=document.createElement("div");
-  row.className="route-row";
+function createRouteRow(labelPrefix="Route"){
+  const row = document.createElement("div");
+  row.className = "route-row";
   row.innerHTML = `
     <div class="drag-handle">☰</div>
-    <input class="start-input" placeholder="Start" />
-    <input class="end-input" placeholder="End" />
-    <input class="label-input" placeholder="${label}" />
-    <div class="color-row">
-      <label>Box:</label><input type="color" class="color-input boxColor" value="#2e8b57"/>
-      <label>Text:</label><input type="color" class="color-input textColor" value="#ffffff"/>
-    </div>
-    <div class="buttons-row">
-      <button class="toggleRoute">🙈 Hide</button>
-      <button class="removeRoute">✖ Delete</button>
+    <div class="route-main">
+      <div class="point-row">
+        <div class="point-label">Start:</div>
+        <input class="addr-input start-addr" placeholder="Start address or postcode" />
+        <input class="name-input start-name" placeholder="Start label" />
+      </div>
+      <div class="point-row">
+        <div class="point-label">End:</div>
+        <input class="addr-input end-addr" placeholder="End address or postcode" />
+        <input class="name-input end-name" placeholder="End label" />
+      </div>
+      <div class="color-row">
+        <label>Box:</label>
+        <input type="color" class="color-input boxColor" value="#2e8b57"/>
+        <label>Text:</label>
+        <input type="color" class="color-input textColor" value="#ffffff"/>
+      </div>
+      <div class="buttons-row">
+        <button class="toggleRoute">🙈 Hide</button>
+        <button class="removeRoute">✖ Delete</button>
+      </div>
     </div>
   `;
 
   routeContainer.appendChild(row);
 
   const r = {
-    id: nextId++,
+    id: nextRouteId++,
     row,
-    startInput: row.querySelector(".start-input"),
-    endInput:   row.querySelector(".end-input"),
-    labelInput: row.querySelector(".label-input"),
-    box:        row.querySelector(".boxColor"),
-    text:       row.querySelector(".textColor"),
-    visible:    true,
-    poly:       null,
-    startLatLng: null,
-    endLatLng:   null,
-    startMarker: null,
-    endMarker:   null,
-    startLabel:  null,
-    endLabel:    null
+    startAddrInput:  row.querySelector(".start-addr"),
+    startLabelInput: row.querySelector(".start-name"),
+    endAddrInput:    row.querySelector(".end-addr"),
+    endLabelInput:   row.querySelector(".end-name"),
+    boxInput:        row.querySelector(".boxColor"),
+    textInput:       row.querySelector(".textColor"),
+    visible:         true,
+    polyline:        null,
+    startLatLng:     null,
+    endLatLng:       null,
+    startMarker:     null,
+    endMarker:       null,
+    startLabelMarker:null,
+    endLabelMarker:  null
   };
 
-  attachAC(r.startInput, startAc);
-  attachAC(r.endInput,   endAc);
+  attachAC(r.startAddrInput, startAcMap);
+  attachAC(r.endAddrInput,   endAcMap);
 
-  row.querySelector(".toggleRoute").onclick = () =>
-    toggleRoute(r, row.querySelector(".toggleRoute"));
-  row.querySelector(".removeRoute").onclick = () =>
-    removeRoute(r);
+  const toggleBtn = row.querySelector(".toggleRoute");
+  const removeBtn = row.querySelector(".removeRoute");
+
+  toggleBtn.onclick = () => toggleRoute(r, toggleBtn);
+  removeBtn.onclick = () => removeRoute(r);
 
   routes.push(r);
   return r;
 }
 
-createRouteRow("Route 1");
+createRouteRow();
 
 Sortable.create(routeContainer,{handle:".drag-handle",animation:150});
 
 /* ======================== ROUTE ACTIONS ======================== */
 function removeRoute(r){
-  if(r.poly) routeLayer.removeLayer(r.poly);
-  [r.startMarker,r.endMarker,r.startLabel,r.endLabel].forEach(x=>{
-    if(x) routeMarkerLayer.removeLayer(x);
+  if(r.polyline) routeLayer.removeLayer(r.polyline);
+  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
+    if(m) routeMarkerLayer.removeLayer(m);
   });
   routes = routes.filter(x=>x!==r);
   r.row.remove();
 }
 
-function toggleRoute(r,btn){
+function toggleRoute(r, btn){
   r.visible = !r.visible;
   btn.textContent = r.visible ? "🙈 Hide" : "👁 Show";
 
-  if(r.poly){
-    if(r.visible) routeLayer.addLayer(r.poly);
-    else routeLayer.removeLayer(r.poly);
+  if(r.polyline){
+    if(r.visible) routeLayer.addLayer(r.polyline);
+    else routeLayer.removeLayer(r.polyline);
   }
-  [r.startMarker,r.endMarker,r.startLabel,r.endLabel].forEach(x=>{
-    if(!x) return;
-    if(r.visible) routeMarkerLayer.addLayer(x);
-    else routeMarkerLayer.removeLayer(x);
+
+  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
+    if(!m) return;
+    if(r.visible) routeMarkerLayer.addLayer(m);
+    else routeMarkerLayer.removeLayer(m);
   });
 }
 
@@ -460,74 +488,81 @@ async function computeRoute(start,end,mode){
 
 /* ======================== DRAW ONE ROUTE ======================== */
 async function drawRoute(r,mode){
-  // remove existing
-  if(r.poly) routeLayer.removeLayer(r.poly);
-  [r.startMarker,r.endMarker,r.startLabel,r.endLabel].forEach(x=>{
-    if(x) routeMarkerLayer.removeLayer(x);
+  // Clear old layers
+  if(r.polyline) routeLayer.removeLayer(r.polyline);
+  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
+    if(m) routeMarkerLayer.removeLayer(m);
   });
 
-  function resolve(acMap,input){
+  function resolveLatLng(acMap,input,existing){
+    if(existing) return existing;
     const ac=acMap.get(input);
     const place=ac && ac.getPlace && ac.getPlace();
-    if(place&&place.geometry){
+    if(place && place.geometry){
       return [place.geometry.location.lat(),place.geometry.location.lng()];
     }
     return null;
   }
 
-  if(!r.startLatLng) r.startLatLng = resolve(startAc,r.startInput);
-  if(!r.endLatLng)   r.endLatLng   = resolve(endAc,r.endInput);
+  r.startLatLng = resolveLatLng(startAcMap, r.startAddrInput, r.startLatLng);
+  r.endLatLng   = resolveLatLng(endAcMap,   r.endAddrInput,   r.endLatLng);
+
   if(!r.startLatLng || !r.endLatLng) return;
 
   const coords = await computeRoute(r.startLatLng,r.endLatLng,mode);
   if(!coords.length) return;
 
   const latlngs = coords.map(p=>[p[0],p[1]]);
+
   const poly = L.polyline(latlngs,{
-    color: r.box.value,
+    color:r.boxInput.value,
     weight:5,
     dashArray: mode==="WALK" ? "6,10" : null
   });
-  r.poly = poly;
+  r.polyline = poly;
   if(r.visible) poly.addTo(routeLayer);
 
   const font=document.getElementById("labelFont").value;
   const size=document.getElementById("labelFontSize").value;
 
-  const sm = L.marker(r.startLatLng,{
+  const startMarker = L.marker(r.startLatLng,{
     draggable:true,
-    icon: makeMarker(r.box.value)
+    icon: makeMarker(r.boxInput.value)
   });
-  const em = L.marker(r.endLatLng,{
+  const endMarker = L.marker(r.endLatLng,{
     draggable:true,
-    icon: makeMarker(r.box.value)
+    icon: makeMarker(r.boxInput.value)
   });
 
   if(r.visible){
-    sm.addTo(routeMarkerLayer);
-    em.addTo(routeMarkerLayer);
+    startMarker.addTo(routeMarkerLayer);
+    endMarker.addTo(routeMarkerLayer);
   }
 
   function labelHTML(text){
     return `<div class="label-box"
-              style="background:${r.box.value}; color:${r.text.value};
+              style="background:${r.boxInput.value}; color:${r.textInput.value};
                      font-family:${font}; font-size:${size};">
               ${text}
             </div>`;
   }
 
-  const sl = L.marker(r.startLatLng,{
+  const startText = r.startLabelInput.value || "Start";
+  const endText   = r.endLabelInput.value   || "End";
+
+  const startLabelMarker = L.marker(r.startLatLng,{
     icon:L.divIcon({
-      html:labelHTML("Start"),
+      html:labelHTML(startText),
       className:"",
       iconSize:[0,0],
       iconAnchor:[0,-10]
     }),
     interactive:false
   });
-  const el = L.marker(r.endLatLng,{
+
+  const endLabelMarker = L.marker(r.endLatLng,{
     icon:L.divIcon({
-      html:labelHTML("End"),
+      html:labelHTML(endText),
       className:"",
       iconSize:[0,0],
       iconAnchor:[0,-10]
@@ -536,25 +571,31 @@ async function drawRoute(r,mode){
   });
 
   if(r.visible){
-    sl.addTo(routeMarkerLayer);
-    el.addTo(routeMarkerLayer);
+    startLabelMarker.addTo(routeMarkerLayer);
+    endLabelMarker.addTo(routeMarkerLayer);
   }
 
-  r.startMarker = sm;
-  r.endMarker   = em;
-  r.startLabel  = sl;
-  r.endLabel    = el;
+  r.startMarker      = startMarker;
+  r.endMarker        = endMarker;
+  r.startLabelMarker = startLabelMarker;
+  r.endLabelMarker   = endLabelMarker;
 
-  sm.on("drag", e=>{
-    r.startLatLng = [e.latlng.lat,e.latlng.lng];
-    sl.setLatLng(e.latlng);
-    drawRoute(r,mode);
+  // Drag behaviour: update coords and labels, then redraw route on dragend
+  startMarker.on("drag", e=>{
+    startLabelMarker.setLatLng(e.latlng);
+  });
+  endMarker.on("drag", e=>{
+    endLabelMarker.setLatLng(e.latlng);
   });
 
-  em.on("drag", e=>{
-    r.endLatLng = [e.latlng.lat,e.latlng.lng];
-    el.setLatLng(e.latlng);
-    drawRoute(r,mode);
+  startMarker.on("dragend", async e=>{
+    r.startLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+    await drawRoute(r,mode);
+  });
+
+  endMarker.on("dragend", async e=>{
+    r.endLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+    await drawRoute(r,mode);
   });
 }
 
@@ -564,9 +605,16 @@ document.getElementById("drawAllBtn").onclick = async ()=>{
   for(const r of routes){
     await drawRoute(r,mode);
   }
+
+  // Optionally fit to all visible routes
+  let b=null;
+  routeLayer.eachLayer(l=>{
+    if(!b) b=l.getBounds(); else b.extend(l.getBounds());
+  });
+  if(b) map.fitBounds(b,{padding:[40,40]});
 };
 
-/* ======================== FREE MARKERS ======================== */
+/* ======================== FREE-PLACE MARKERS ======================== */
 let dropMode=false;
 document.getElementById("addFreeMarkerBtn").onclick=()=>{
   dropMode=true;
