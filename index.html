@@ -408,6 +408,9 @@ function createRouteRow(labelPrefix="Route"){
 }
 
 createRouteRow();
+document.getElementById("addRouteBtn").onclick = () => {
+  createRouteRow();
+};
 
 Sortable.create(routeContainer,{handle:".drag-handle",animation:150});
 
