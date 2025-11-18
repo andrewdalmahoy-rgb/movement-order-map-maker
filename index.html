@@ -41,7 +41,7 @@
       z-index:1;
     }
 
-    /* Ensure Leaflet UI controls are visible */
+    /* Leaflet controls */
     .leaflet-control-container {
       z-index: 500;
     }
@@ -89,8 +89,8 @@
 
     .point-row {
       display:grid;
-      grid-template-columns: 70px 1fr 1fr;
-      grid-template-areas: "label addr lbl";
+      grid-template-columns: 70px 1fr 32px 1fr;
+      grid-template-areas: "label addr pick lbl";
       column-gap:6px;
       align-items:center;
     }
@@ -114,11 +114,26 @@
     .addr-input { grid-area:addr; }
     .name-input { grid-area:lbl; }
 
+    .pick-btn {
+      grid-area:pick;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:16px;
+      background:#eee;
+      padding:4px 6px;
+    }
+
+    .pick-btn:hover {
+      background:#ddd;
+    }
+
     .color-row {
       display:flex;
       gap:10px;
       align-items:center;
       font-size:13px;
+      flex-wrap:wrap;
     }
 
     .color-input {
@@ -128,6 +143,21 @@
       border-radius:4px;
       cursor:pointer;
       padding:0;
+    }
+
+    .preset-swatches {
+      display:flex;
+      gap:4px;
+      align-items:center;
+      margin-left:auto;
+    }
+
+    .preset-swatch {
+      width:18px;
+      height:18px;
+      border-radius:4px;
+      cursor:pointer;
+      border:1px solid rgba(0,0,0,0.25);
     }
 
     .buttons-row {
@@ -291,18 +321,27 @@ let satelliteOn = false;
 
 const routeLayer = L.layerGroup().addTo(map);
 const routeMarkerLayer = L.layerGroup().addTo(map);
-const freeMarkerLayer = L.layerGroup().addTo(map);
 
-/* ======================== SIDEBAR TOGGLE ======================== */
+/* ======================== SIDEBAR & ZOOM LAYOUT ======================== */
 const sidebar = document.getElementById("sidebar");
 const panelToggle = document.getElementById("panelToggle");
 let panelOpen = true;
 
+function applyLayout(){
+  sidebar.classList.toggle("hidden", !panelOpen);
+  const ctrl = document.querySelector(".leaflet-top.leaflet-left");
+  if(ctrl){
+    ctrl.style.left = panelOpen ? "460px" : "10px";
+  }
+  setTimeout(()=>map.invalidateSize(),200);
+}
+
 panelToggle.addEventListener("click",()=>{
   panelOpen = !panelOpen;
-  sidebar.classList.toggle("hidden", !panelOpen);
-  setTimeout(()=>map.invalidateSize(),200);
+  applyLayout();
 });
+
+applyLayout();
 
 /* ======================== SATELLITE ======================== */
 document.getElementById("satToggle").addEventListener("click",()=>{
@@ -353,11 +392,13 @@ function createRouteRow(){
       <div class="point-row">
         <div class="point-label">Start:</div>
         <input class="addr-input start-addr" placeholder="Start address or postcode" />
+        <button type="button" class="pick-btn pick-start" title="Pick start from map">📍</button>
         <input class="name-input start-name" placeholder="Start label" />
       </div>
       <div class="point-row">
         <div class="point-label">End:</div>
         <input class="addr-input end-addr" placeholder="End address or postcode" />
+        <button type="button" class="pick-btn pick-end" title="Pick end from map">📍</button>
         <input class="name-input end-name" placeholder="End label" />
       </div>
       <div class="color-row">
@@ -365,6 +406,12 @@ function createRouteRow(){
         <input type="color" class="color-input boxColor" value="#2e8b57"/>
         <label>Text:</label>
         <input type="color" class="color-input textColor" value="#ffffff"/>
+        <div class="preset-swatches">
+          <span class="preset-swatch" data-box="#2e8b57" data-text="#ffffff" style="background:#2e8b57;"></span>
+          <span class="preset-swatch" data-box="#1e90ff" data-text="#ffffff" style="background:#1e90ff;"></span>
+          <span class="preset-swatch" data-box="#ff8c00" data-text="#000000" style="background:#ff8c00;"></span>
+          <span class="preset-swatch" data-box="#8b0000" data-text="#ffffff" style="background:#8b0000;"></span>
+        </div>
       </div>
       <div class="buttons-row">
         <button class="toggleRoute">🙈 Hide</button>
@@ -399,9 +446,36 @@ function createRouteRow(){
 
   const toggleBtn = row.querySelector(".toggleRoute");
   const removeBtn = row.querySelector(".removeRoute");
+  const pickStartBtn = row.querySelector(".pick-start");
+  const pickEndBtn   = row.querySelector(".pick-end");
 
   toggleBtn.onclick = () => toggleRoute(r, toggleBtn);
   removeBtn.onclick = () => removeRoute(r);
+
+  pickStartBtn.onclick = () => {
+    pickMode = { route: r, which: "start" };
+    alert("Click on the map to set the START point for this route.");
+  };
+
+  pickEndBtn.onclick = () => {
+    pickMode = { route: r, which: "end" };
+    alert("Click on the map to set the END point for this route.");
+  };
+
+  // Colour presets
+  const swatches = row.querySelectorAll(".preset-swatch");
+  swatches.forEach(s=>{
+    s.addEventListener("click",()=>{
+      const box = s.getAttribute("data-box");
+      const text = s.getAttribute("data-text");
+      r.boxInput.value = box;
+      r.textInput.value = text;
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      if(r.polyline || r.startMarker || r.endMarker){
+        drawRoute(r,mode);
+      }
+    });
+  });
 
   routes.push(r);
   return r;
@@ -409,7 +483,6 @@ function createRouteRow(){
 
 createRouteRow();
 
-/* ⭐ FIXED: Add Route handler */
 document.getElementById("addRouteBtn").onclick = () => {
   createRouteRow();
 };
@@ -621,6 +694,8 @@ document.getElementById("drawAllBtn").onclick = async ()=>{
 
 /* ======================== FREE-PLACE MARKERS ======================== */
 let dropMode=false;
+let pickMode=null; // {route, which: "start"|"end"}
+
 document.getElementById("addFreeMarkerBtn").onclick=()=>{
   dropMode=true;
   alert("Click the map to place a custom marker.");
@@ -638,7 +713,7 @@ function createFreeMarker(latlng,text,boxColor,textColor){
   const marker=L.marker(latlng,{
     draggable:true,
     icon: makeMarker(boxColor)
-  }).addTo(freeMarkerLayer);
+  }).addTo(map);
 
   const labelMarker=L.marker(latlng,{
     icon:L.divIcon({
@@ -652,7 +727,7 @@ function createFreeMarker(latlng,text,boxColor,textColor){
       iconAnchor:[0,-10]
     }),
     interactive:false
-  }).addTo(freeMarkerLayer);
+  }).addTo(map);
 
   const fm={id,marker,labelMarker,text,boxColor,textColor};
   freeMarkers.push(fm);
@@ -719,8 +794,8 @@ function openFreeMarkerEditor(fm){
     };
 
     document.getElementById(`fm-del-${fm.id}`).onclick=()=>{
-      freeMarkerLayer.removeLayer(fm.marker);
-      freeMarkerLayer.removeLayer(fm.labelMarker);
+      fm.marker.remove();
+      fm.labelMarker.remove();
       const idx=freeMarkers.findIndex(x=>x.id===fm.id);
       freeMarkers.splice(idx,1);
       map.closePopup();
@@ -729,19 +804,35 @@ function openFreeMarkerEditor(fm){
   },20);
 }
 
-map.on("click",e=>{
-  if(!dropMode) return;
-  dropMode=false;
+/* ======================== MAP CLICK HANDLER ======================== */
+map.on("click", async e=>{
+  if(dropMode){
+    dropMode=false;
+    const t=prompt("Marker label text:","Point");
+    if(t===null) return;
+    createFreeMarker(
+      e.latlng,
+      t||"Point",
+      "#2e8b57",
+      "#ffffff"
+    );
+    return;
+  }
 
-  const t=prompt("Marker label text:","Point");
-  if(t===null) return;
+  if(pickMode){
+    const { route, which } = pickMode;
+    pickMode = null;
 
-  createFreeMarker(
-    e.latlng,
-    t||"Point",
-    "#2e8b57",
-    "#ffffff"
-  );
+    if(which === "start"){
+      route.startLatLng = [e.latlng.lat, e.latlng.lng];
+    } else {
+      route.endLatLng = [e.latlng.lat, e.latlng.lng];
+    }
+
+    const mode=document.querySelector('input[name="mode"]:checked').value;
+    await drawRoute(route,mode);
+    return;
+  }
 });
 </script>
 
