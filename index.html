@@ -41,7 +41,7 @@
       z-index:1;
     }
 
-    /* Keep Leaflet controls above the map but below the sidebar */
+    /* Ensure Leaflet UI controls are visible */
     .leaflet-control-container {
       z-index: 500;
     }
@@ -344,7 +344,7 @@ function makeMarker(color){
   });
 }
 
-function createRouteRow(labelPrefix="Route"){
+function createRouteRow(){
   const row = document.createElement("div");
   row.className = "route-row";
   row.innerHTML = `
@@ -408,6 +408,8 @@ function createRouteRow(labelPrefix="Route"){
 }
 
 createRouteRow();
+
+/* ⭐ FIXED: Add Route handler */
 document.getElementById("addRouteBtn").onclick = () => {
   createRouteRow();
 };
@@ -609,7 +611,7 @@ document.getElementById("drawAllBtn").onclick = async ()=>{
     await drawRoute(r,mode);
   }
 
-  // Optionally fit to all visible routes
+  // Fit to bounds of all visible routes
   let b=null;
   routeLayer.eachLayer(l=>{
     if(!b) b=l.getBounds(); else b.extend(l.getBounds());
