@@ -353,9 +353,9 @@ let satelliteOn = false;
 
 const routeLayer = L.layerGroup().addTo(map);
 const routeMarkerLayer = L.layerGroup().addTo(map);
-const freeMarkerLayer = L.layerGroup().addTo(map); // for free markers & labels
+const freeMarkerLayer = L.layerGroup().addTo(map);
 const drawnRouteLayer = L.layerGroup().addTo(map);
-const drawnMarkerLayer = L.layerGroup().addTo(map); // start/end + handles
+const drawnMarkerLayer = L.layerGroup().addTo(map);
 
 /* ======================== SIDEBAR & ZOOM LAYOUT ======================== */
 const sidebar = document.getElementById("sidebar");
@@ -507,8 +507,8 @@ function createRouteRow(){
       const text = s.getAttribute("data-text");
       r.boxInput.value = box;
       r.textInput.value = text;
-      const mode = document.querySelector('input[name=\"mode\"]:checked').value;
-      if(r.polyline || r.startMarker || r.endMarker){
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      if(r.startLatLng || r.endLatLng || r.polyline){
         drawRoute(r,mode);
       }
     });
@@ -528,10 +528,11 @@ Sortable.create(routeContainer,{handle:".drag-handle",animation:150});
 
 /* ======================== ROUTE ACTIONS ======================== */
 function removeRoute(r){
-  if(r.polyline) routeLayer.removeLayer(r.polyline);
+  if(r.polyline) { routeLayer.removeLayer(r.polyline); r.polyline=null; }
   [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
     if(m) routeMarkerLayer.removeLayer(m);
   });
+  r.startMarker=r.endMarker=r.startLabelMarker=r.endLabelMarker=null;
   routes = routes.filter(x=>x!==r);
   r.row.remove();
 }
@@ -604,10 +605,11 @@ async function computeRoute(start,end,mode){
 /* ======================== DRAW ONE ROUTE ======================== */
 async function drawRoute(r,mode){
   // Clear old layers
-  if(r.polyline) routeLayer.removeLayer(r.polyline);
+  if(r.polyline) { routeLayer.removeLayer(r.polyline); r.polyline=null; }
   [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
     if(m) routeMarkerLayer.removeLayer(m);
   });
+  r.startMarker=r.endMarker=r.startLabelMarker=r.endLabelMarker=null;
 
   function resolveLatLng(acMap,input,existing){
     if(existing) return existing;
@@ -616,19 +618,96 @@ async function drawRoute(r,mode){
     if(place && place.geometry){
       return [place.geometry.location.lat(),place.geometry.location.lng()];
     }
-    return null;
+    return existing;
   }
 
+  // Use existing coordinates (from picking) or resolve from address
   r.startLatLng = resolveLatLng(startAcMap, r.startAddrInput, r.startLatLng);
   r.endLatLng   = resolveLatLng(endAcMap,   r.endAddrInput,   r.endLatLng);
 
-  if(!r.startLatLng || !r.endLatLng) return;
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
 
+  const haveStart = !!r.startLatLng;
+  const haveEnd   = !!r.endLatLng;
+
+  // Place start/end markers even if we can't route yet
+  if(haveStart){
+    const sm = L.marker(r.startLatLng,{
+      draggable:true,
+      icon: makeMarker(r.boxInput.value)
+    });
+    if(r.visible) sm.addTo(routeMarkerLayer);
+    r.startMarker = sm;
+
+    const startText = r.startLabelInput.value || "Start";
+    const sl = L.marker(r.startLatLng,{
+      icon:L.divIcon({
+        html:`<div class="label-box"
+                 style="background:${r.boxInput.value}; color:${r.textInput.value};
+                        font-family:${font}; font-size:${size};">
+                ${startText}
+              </div>`,
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[0,-10]
+      }),
+      interactive:false
+    });
+    if(r.visible) sl.addTo(routeMarkerLayer);
+    r.startLabelMarker = sl;
+
+    sm.on("drag", e=>{
+      sl.setLatLng(e.latlng);
+    });
+    sm.on("dragend", async e=>{
+      r.startLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+      await drawRoute(r,mode);
+    });
+  }
+
+  if(haveEnd){
+    const em = L.marker(r.endLatLng,{
+      draggable:true,
+      icon: makeMarker(r.boxInput.value)
+    });
+    if(r.visible) em.addTo(routeMarkerLayer);
+    r.endMarker = em;
+
+    const endText = r.endLabelInput.value || "End";
+    const el = L.marker(r.endLatLng,{
+      icon:L.divIcon({
+        html:`<div class="label-box"
+                 style="background:${r.boxInput.value}; color:${r.textInput.value};
+                        font-family:${font}; font-size:${size};">
+                ${endText}
+              </div>`,
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[0,-10]
+      }),
+      interactive:false
+    });
+    if(r.visible) el.addTo(routeMarkerLayer);
+    r.endLabelMarker = el;
+
+    em.on("drag", e=>{
+      el.setLatLng(e.latlng);
+    });
+    em.on("dragend", async e=>{
+      r.endLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+      await drawRoute(r,mode);
+    });
+  }
+
+  // If we don't have both ends yet, stop here
+  if(!(haveStart && haveEnd)) return;
+
+  // Compute and draw route line
   const coords = await computeRoute(r.startLatLng,r.endLatLng,mode);
   if(!coords.length) return;
 
   const latlngs = coords.map(p=>[p[0],p[1]]);
-
   const poly = L.polyline(latlngs,{
     color:r.boxInput.value,
     weight:5,
@@ -636,82 +715,6 @@ async function drawRoute(r,mode){
   });
   r.polyline = poly;
   if(r.visible) poly.addTo(routeLayer);
-
-  const font=document.getElementById("labelFont").value;
-  const size=document.getElementById("labelFontSize").value;
-
-  const startMarker = L.marker(r.startLatLng,{
-    draggable:true,
-    icon: makeMarker(r.boxInput.value)
-  });
-  const endMarker = L.marker(r.endLatLng,{
-    draggable:true,
-    icon: makeMarker(r.boxInput.value)
-  });
-
-  if(r.visible){
-    startMarker.addTo(routeMarkerLayer);
-    endMarker.addTo(routeMarkerLayer);
-  }
-
-  function labelHTML(text){
-    return `<div class="label-box"
-              style="background:${r.boxInput.value}; color:${r.textInput.value};
-                     font-family:${font}; font-size:${size};">
-              ${text}
-            </div>`;
-  }
-
-  const startText = r.startLabelInput.value || "Start";
-  const endText   = r.endLabelInput.value   || "End";
-
-  const startLabelMarker = L.marker(r.startLatLng,{
-    icon:L.divIcon({
-      html:labelHTML(startText),
-      className:"",
-      iconSize:[0,0],
-      iconAnchor:[0,-10]
-    }),
-    interactive:false
-  });
-
-  const endLabelMarker = L.marker(r.endLatLng,{
-    icon:L.divIcon({
-      html:labelHTML(endText),
-      className:"",
-      iconSize:[0,0],
-      iconAnchor:[0,-10]
-    }),
-    interactive:false
-  });
-
-  if(r.visible){
-    startLabelMarker.addTo(routeMarkerLayer);
-    endLabelMarker.addTo(routeMarkerLayer);
-  }
-
-  r.startMarker      = startMarker;
-  r.endMarker        = endMarker;
-  r.startLabelMarker = startLabelMarker;
-  r.endLabelMarker   = endLabelMarker;
-
-  // Drag behaviour: update coords and labels, then redraw route on dragend
-  startMarker.on("drag", e=>{
-    startLabelMarker.setLatLng(e.latlng);
-  });
-  endMarker.on("drag", e=>{
-    endLabelMarker.setLatLng(e.latlng);
-  });
-
-  startMarker.on("dragend", async e=>{
-    r.startLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
-    await drawRoute(r,mode);
-  });
-
-  endMarker.on("dragend", async e=>{
-    r.endLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
-    await drawRoute(r,mode);
-  });
 }
 
 /* ======================== DRAW ALL ROUTES ======================== */
@@ -794,17 +797,6 @@ document.addEventListener("keydown",e=>{
   }
 });
 
-function makeDrawnPolylineStyle(drawRouteObj){
-  let dash = null;
-  if(drawRouteObj.styleSelect.value === "dashed") dash = "6,10";
-  if(drawRouteObj.styleSelect.value === "dotted") dash = "2,8";
-  return {
-    color: drawRouteObj.boxInput.value,
-    weight: 4,
-    dashArray: dash
-  };
-}
-
 function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
   const row = document.createElement("div");
   row.className = "drawn-route-row";
@@ -873,41 +865,9 @@ function buildLabelHTML(text, bg, fg, font, size){
           </div>`;
 }
 
-function attachDrawnRouteEvents(dr, toggleBtn, removeBtn){
-  toggleBtn.onclick = () => {
-    dr.visible = !dr.visible;
-    toggleBtn.textContent = dr.visible ? "🙈 Hide" : "👁 Show";
-
-    if(dr.polyline){
-      if(dr.visible) drawnRouteLayer.addLayer(dr.polyline);
-      else drawnRouteLayer.removeLayer(dr.polyline);
-    }
-    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(m=>{
-      if(!m) return;
-      if(dr.visible) drawnMarkerLayer.addLayer(m);
-      else drawnMarkerLayer.removeLayer(m);
-    });
-    dr.handleMarkers.forEach(h=>{
-      if(dr.visible) drawnMarkerLayer.addLayer(h);
-      else drawnMarkerLayer.removeLayer(h);
-    });
-  };
-
-  removeBtn.onclick = () => {
-    if(dr.polyline) drawnRouteLayer.removeLayer(dr.polyline);
-    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(m=>{
-      if(m) drawnMarkerLayer.removeLayer(m);
-    });
-    dr.handleMarkers.forEach(h=>drawnMarkerLayer.removeLayer(h));
-    drawnRoutes = drawnRoutes.filter(x=>x!==dr);
-    dr.row.remove();
-  };
-}
-
 function updateDrawnRouteGraphics(dr){
   if(!dr.polyline) return;
 
-  // Update line style
   let dash = null;
   if(dr.styleSelect.value === "dashed") dash = "6,10";
   if(dr.styleSelect.value === "dotted") dash = "2,8";
@@ -948,10 +908,40 @@ function updateDrawnRouteGraphics(dr){
   }
 }
 
+function attachDrawnRouteEvents(dr, toggleBtn, removeBtn){
+  toggleBtn.onclick = () => {
+    dr.visible = !dr.visible;
+    toggleBtn.textContent = dr.visible ? "🙈 Hide" : "👁 Show";
+
+    if(dr.polyline){
+      if(dr.visible) drawnRouteLayer.addLayer(dr.polyline);
+      else drawnRouteLayer.removeLayer(dr.polyline);
+    }
+    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(m=>{
+      if(!m) return;
+      if(dr.visible) drawnMarkerLayer.addLayer(m);
+      else drawnMarkerLayer.removeLayer(m);
+    });
+    dr.handleMarkers.forEach(h=>{
+      if(dr.visible) drawnMarkerLayer.addLayer(h);
+      else drawnMarkerLayer.removeLayer(h);
+    });
+  };
+
+  removeBtn.onclick = () => {
+    if(dr.polyline) { drawnRouteLayer.removeLayer(dr.polyline); dr.polyline=null; }
+    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(m=>{
+      if(m) drawnMarkerLayer.removeLayer(m);
+    });
+    dr.handleMarkers.forEach(h=>drawnMarkerLayer.removeLayer(h));
+    drawnRoutes = drawnRoutes.filter(x=>x!==dr);
+    dr.row.remove();
+  };
+}
+
 function createDrawnRoute(latlngs){
   if(latlngs.length < 2) return;
 
-  // Ask for labels
   const startDefault = "Start";
   const endDefault   = "End";
   const startLabel = prompt("Name the START point:", startDefault) ?? startDefault;
@@ -979,7 +969,10 @@ function createDrawnRoute(latlngs){
   const font=document.getElementById("labelFont").value;
   const size=document.getElementById("labelFontSize").value;
 
-  const poly = L.polyline(dr.latlngs, makeDrawnPolylineStyle(dr));
+  const poly = L.polyline(dr.latlngs,{
+    color:dr.boxInput.value,
+    weight:4
+  });
   dr.polyline = poly;
   drawnRouteLayer.addLayer(poly);
 
@@ -1019,26 +1012,22 @@ function createDrawnRoute(latlngs){
   dr.startLabelMarker = startLabelMarker;
   dr.endLabelMarker   = endLabelMarker;
 
-  // Create vertex handles for editing
+  // Create vertex handles using draggable markers
   dr.latlngs.forEach((pt, idx)=>{
-    const h = L.circleMarker(pt,{
-      radius:4,
-      weight:1,
-      color:"#000",
-      fillColor:"#fff",
-      fillOpacity:1,
-      draggable:true
-    });
-
-    // hack to make circleMarker draggable
-    h.dragging = new L.Handler.MarkerDrag(h);
-    h.dragging.enable();
+    const h = L.marker(pt,{
+      draggable:true,
+      icon:L.divIcon({
+        className:"",
+        html:'<div style="width:8px;height:8px;border-radius:50%;border:1px solid #000;background:#fff;"></div>',
+        iconSize:[8,8],
+        iconAnchor:[4,4]
+      })
+    }).addTo(drawnMarkerLayer);
 
     h.on("drag", e=>{
       const ll = e.target.getLatLng();
       dr.latlngs[idx] = ll;
       dr.polyline.setLatLngs(dr.latlngs);
-      // If first or last, move start/end markers & labels
       if(idx===0){
         dr.startMarker.setLatLng(ll);
         dr.startLabelMarker.setLatLng(ll);
@@ -1049,7 +1038,6 @@ function createDrawnRoute(latlngs){
       }
     });
 
-    h.addTo(drawnMarkerLayer);
     dr.handleMarkers.push(h);
   });
 
@@ -1057,7 +1045,6 @@ function createDrawnRoute(latlngs){
   const removeBtn = dr.row.querySelector(".removeDrawnRoute");
   attachDrawnRouteEvents(dr, toggleBtn, removeBtn);
 
-  // Colour & style changes
   dr.boxInput.addEventListener("input",()=>updateDrawnRouteGraphics(dr));
   dr.textInput.addEventListener("input",()=>updateDrawnRouteGraphics(dr));
   dr.styleSelect.addEventListener("change",()=>updateDrawnRouteGraphics(dr));
@@ -1079,7 +1066,7 @@ function createDrawnRoute(latlngs){
 
 Sortable.create(drawnRouteContainer,{handle:".drag-handle",animation:150});
 
-/* ======================== DRAWING INTERACTIONS ======================== */
+/* ======================== DRAWING INTERACTIONS & FREE MARKERS ======================== */
 let dropMode=false;
 let pickMode=null; // {route, which: "start"|"end"}
 
@@ -1101,7 +1088,7 @@ function createFreeMarker(latlng,text,boxColor,textColor){
   const marker=L.marker(latlng,{
     draggable:true,
     icon: makeMarker(boxColor)
-  }).addTo(freeMarkerLayer); // FIXED: use freeMarkerLayer
+  }).addTo(freeMarkerLayer);
 
   const labelMarker=L.marker(latlng,{
     icon:L.divIcon({
@@ -1115,7 +1102,7 @@ function createFreeMarker(latlng,text,boxColor,textColor){
       iconAnchor:[0,-10]
     }),
     interactive:false
-  }).addTo(freeMarkerLayer); // FIXED: use freeMarkerLayer
+  }).addTo(freeMarkerLayer);
 
   const fm={id,marker,labelMarker,text,boxColor,textColor};
   freeMarkers.push(fm);
@@ -1192,7 +1179,7 @@ function openFreeMarkerEditor(fm){
   },20);
 }
 
-/* Freehand drawing (mouse drag) */
+/* Drawing: freehand + point-by-point + pickMode + free markers */
 map.on("mousedown", e=>{
   if(drawMode==="freehand"){
     isDrawing = true;
@@ -1223,20 +1210,17 @@ map.on("mouseup", e=>{
       return;
     }
 
-    // finalize
     const pts = tempDrawPoints.slice();
     drawnRouteLayer.removeLayer(tempDrawLine);
     tempDrawLine = null;
     tempDrawPoints = [];
 
     createDrawnRoute(pts);
-    // reset mode to none after a route is drawn
     drawModeSelect.value="none";
     setDrawMode("none");
   }
 });
 
-/* Point-by-point drawing (clicks & double-click) */
 map.on("click", e=>{
   if(drawMode==="points"){
     if(!isDrawing){
@@ -1249,10 +1233,9 @@ map.on("click", e=>{
       tempDrawLine.setLatLngs(tempDrawPoints);
       cancelDrawBtn.disabled = false;
     }
-    return; // don't fall through to other click behaviours
+    return;
   }
 
-  // Free marker placement
   if(dropMode){
     dropMode=false;
     const t=prompt("Marker label text:","Point");
@@ -1266,7 +1249,6 @@ map.on("click", e=>{
     return;
   }
 
-  // Pick start/end for address routes
   if(pickMode){
     const { route, which } = pickMode;
     pickMode = null;
