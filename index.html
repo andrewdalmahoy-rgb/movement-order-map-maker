@@ -709,7 +709,7 @@ function decodePolyline(encoded){
 async function computeRoute(start,end,mode){
   const body={
     origin:{location:{latLng:{latitude:start[0],longitude:start[1]}}},
-    destination:{location:{latLng:{latitude=end[0],longitude=end[1]}}},
+    destination:{location:{latLng:{latitude=end[0],longitude:end[1]}}},
     travelMode:mode
   };
   const res=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
@@ -1230,7 +1230,15 @@ function createFreeMarker(latlng,text,boxColor,textColor){
     interactive:false
   }).addTo(freeMarkerLayer);
 
-  const fm={id:id, marker:marker, labelMarker:labelMarker, text:text, boxColor:boxColor, textColor:textColor};
+  // FIXED: expanded object literal to avoid shorthand issues
+  const fm = {
+    id: id,
+    marker: marker,
+    labelMarker: labelMarker,
+    text: text,
+    boxColor: boxColor,
+    textColor: textColor
+  };
   freeMarkers.push(fm);
 
   marker.on("drag",e=>labelMarker.setLatLng(e.latlng));
