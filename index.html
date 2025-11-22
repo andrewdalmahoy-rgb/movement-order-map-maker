@@ -1236,13 +1236,13 @@ function createFreeMarker(latlng,text,boxColor,textColor){
   }).addTo(freeMarkerLayer);
 
   const fm = {
-    id: id,
-    marker: marker,
-    labelMarker: labelMarker,
-    text: text,
-    boxColor: boxColor,
-    textColor: textColor
-  };
+  id: id,
+  marker: marker,
+  labelMarker: labelMarker,
+  text: text,
+  boxColor: boxColor,
+  textColor: textColor
+};
   freeMarkers.push(fm);
 
   marker.on("drag",function(e){ labelMarker.setLatLng(e.latlng); });
