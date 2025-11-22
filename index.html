@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Movement Order Map Maker</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    header {
+      background:#0b6fa6;
+      color:white;
+      padding:10px 16px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .layout {
+      position:absolute;
+      top:48px;
+      left:0; right:0; bottom:0;
+    }
+
+    #map {
+      position:absolute;
+      top:0; left:0; right:0; bottom:0;
+      z-index:1;
+    }
+
+    .leaflet-control-container {
+      z-index: 500;
+    }
+
+    .sidebar {
+      position:absolute;
+      top:0; bottom:0; left:0;
+      width:450px;
+      background:#f4f5f7;
+      box-shadow:2px 0 8px rgba(0,0,0,0.2);
+      padding:12px;
+      overflow-y:auto;
+      z-index:900;
+      transition:transform 0.3s ease;
+    }
+    .sidebar.hidden { transform:translateX(-100%); }
+
+    .route-row,
+    .drawn-route-row {
+      display:grid;
+      grid-template-columns: 28px 1fr;
+      grid-template-areas: "handle main";
+      gap:6px 10px;
+      padding:10px;
+      margin-bottom:10px;
+      background:white;
+      border-radius:6px;
+      box-shadow:0 1px 3px rgba(0,0,0,0.15);
+    }
+
+    .drag-handle {
+      grid-area:handle;
+      cursor:grab;
+      font-size:20px;
+      user-select:none;
+      padding-top:4px;
+    }
+
+    .route-main,
+    .drawn-route-main {
+      grid-area:main;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .point-row {
+      display:grid;
+      grid-template-columns: 70px 1fr 32px 1fr;
+      grid-template-areas: "label addr pick lbl";
+      column-gap:6px;
+      align-items:center;
+    }
+
+    .point-label {
+      grid-area:label;
+      font-size:13px;
+      font-weight:bold;
+    }
+
+    .addr-input,
+    .name-input {
+      padding:6px;
+      border-radius:4px;
+      border:1px solid #aaa;
+      font-size:13px;
+      width:100%;
+      box-sizing:border-box;
+    }
+
+    .addr-input { grid-area:addr; }
+    .name-input { grid-area:lbl; }
+
+    .pick-btn {
+      grid-area:pick;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:16px;
+      background:#eee;
+      padding:4px 6px;
+    }
+
+    .pick-btn:hover { background:#ddd; }
+
+    .color-row {
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      font-size:13px;
+    }
+
+    .color-controls {
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .color-input {
+      width:40px;
+      height:32px;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      padding:0;
+    }
+
+    .preset-swatches {
+      width:100%;
+      display:grid;
+      grid-template-columns:repeat(11, 1fr);
+      gap:4px;
+    }
+
+    .preset-swatch {
+      width:100%;
+      padding-top:100%;
+      border-radius:3px;
+      cursor:pointer;
+      border:1px solid rgba(0,0,0,0.25);
+      box-sizing:border-box;
+    }
+
+    .bottom-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-top:6px;
+      gap:8px;
+    }
+
+    .mode-row {
+      font-size:13px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .mode-row label { font-weight:normal; }
+
+    .buttons-row {
+      display:flex;
+      justify-content:flex-end;
+      gap:8px;
+    }
+
+    .removeRoute,
+    .toggleRoute,
+    .removeDrawnRoute,
+    .toggleDrawnRoute {
+      border:none;
+      border-radius:4px;
+      padding:6px 10px;
+      cursor:pointer;
+      font-size:13px;
+    }
+
+    .removeRoute,
+    .removeDrawnRoute {
+      background:#b22222;
+      color:white;
+    }
+
+    .toggleRoute,
+    .toggleDrawnRoute {
+      background:#666;
+      color:white;
+    }
+
+    .full-btn {
+      width:100%;
+      padding:8px 10px;
+      border:none;
+      border-radius:4px;
+      margin-top:6px;
+      background:#0b6fa6;
+      color:white;
+      font-size:15px;
+      cursor:pointer;
+      box-sizing:border-box;
+    }
+
+    .label-box {
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:8px;
+      font-weight:bold;
+      white-space:nowrap;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      line-height:1.2;
+      pointer-events:none;
+    }
+
+    .panel-toggle,
+    .free-marker-btn {
+      position:absolute;
+      bottom:16px;
+      left:16px;
+      width:48px;
+      height:48px;
+      border-radius:50%;
+      border:1px solid #ccc;
+      background:white;
+      color:#333;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      z-index:1000;
+    }
+    .free-marker-btn { bottom:78px; }
+
+    .marker-editor { font-size:13px; padding:4px; }
+    .marker-editor h4 { margin:0 0 6px; font-size:14px; }
+    .marker-editor label { display:block; margin-top:4px; font-weight:bold; }
+    .marker-editor input[type=text] {
+      width:100%; padding:4px 6px;
+      border-radius:4px; border:1px solid #aaa;
+      box-sizing:border-box;
+    }
+    .marker-editor input[type=color] {
+      width:40px; height:24px; border:none; border-radius:4px;
+      margin-left:4px; cursor:pointer;
+    }
+    .marker-editor-buttons {
+      display:flex; gap:6px; margin-top:8px;
+    }
+    .marker-editor-save {
+      flex:1; background:#0b6fa6; color:white; border:none;
+      padding:5px; border-radius:4px; cursor:pointer;
+    }
+    .marker-editor-delete {
+      flex:1; background:#b22222; color:white; border:none;
+      padding:5px; border-radius:4px; cursor:pointer;
+    }
+
+    .section {
+      margin-top:12px;
+      border:1px solid #ccc;
+      border-radius:6px;
+      background:#fff;
+    }
+    .section-header {
+      padding:8px 10px;
+      font-weight:bold;
+      cursor:pointer;
+      background:#eee;
+      user-select:none;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .section-header .section-arrow {
+      width:12px;
+      display:inline-block;
+    }
+    .section-body {
+      padding:10px;
+      border-top:1px solid #ccc;
+    }
+    .section.collapsed .section-body { display:none; }
+    .section.collapsed .section-header { background:#f7f7f7; }
+
+    #drawHint {
+      font-size:12px;
+      color:#555;
+      margin-top:4px;
+    }
+  </style>
+</head>
+<body>
+
+<header>Movement Order Map Maker</header>
+
+<div class="layout">
+  <div id="map"></div>
+
+  <button id="panelToggle" class="panel-toggle">✕</button>
+  <button id="addFreeMarkerBtn" class="free-marker-btn">📍</button>
+
+  <div id="sidebar" class="sidebar">
+    <h3>Routes</h3>
+    <div id="routeContainer"></div>
+    <button id="addRouteBtn" class="full-btn">➕ Add Route</button>
+
+    <div class="section collapsed" id="labelSection">
+      <div class="section-header">
+        <span class="section-arrow">▸</span> Label Style
+      </div>
+      <div class="section-body">
+        <div style="display:flex; gap:10px;">
+          <select id="labelFont" style="flex:2; padding:6px;">
+            <option>Arial</option><option>Helvetica</option>
+            <option>Verdana</option><option>Georgia</option>
+            <option>Times New Roman</option><option>Courier New</option>
+          </select>
+
+          <select id="labelFontSize" style="flex:1; padding:6px;">
+            <option>12px</option>
+            <option selected>14px</option>
+            <option>16px</option><option>18px</option><option>20px</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <button id="drawAllBtn" class="full-btn">Draw All Routes</button>
+    <button id="satToggle" class="full-btn">🛰 Satellite View</button>
+
+    <div class="section collapsed" id="drawingSection">
+      <div class="section-header">
+        <span class="section-arrow">▸</span> Drawing Tools
+      </div>
+      <div class="section-body">
+        <label>
+          Mode:
+          <select id="drawModeSelect">
+            <option value="none">None</option>
+            <option value="freehand">Freehand</option>
+            <option value="points">Point by Point</option>
+          </select>
+        </label>
+        <button id="cancelDrawBtn" class="full-btn" style="margin-top:4px; display:none;">
+          Cancel Drawing
+        </button>
+        <div id="drawHint" style="display:none;"></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:16px;">Drawn Routes</h3>
+    <div id="drawnRouteContainer"></div>
+  </div>
+</div>
+
+<!-- Google Places & Directions -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
+
+<script>
+/* ========== MAP ========== */
+var map = L.map("map").setView([52.5, -1.5], 6);
+
+var streets = L.tileLayer(
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom:19 }
+).addTo(map);
+
+var esriSat = L.tileLayer(
+ "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+ { maxZoom:19 }
+);
+
+var satelliteOn = false;
+
+var routeLayer       = L.layerGroup().addTo(map);
+var routeMarkerLayer = L.layerGroup().addTo(map);
+var freeMarkerLayer  = L.layerGroup().addTo(map);
+var drawnRouteLayer  = L.layerGroup().addTo(map);
+var drawnMarkerLayer = L.layerGroup().addTo(map);
+
+/* ========== SIDEBAR & LAYOUT ========== */
+var sidebar     = document.getElementById("sidebar");
+var panelToggle = document.getElementById("panelToggle");
+var panelOpen   = true;
+
+function applyLayout(){
+  sidebar.classList.toggle("hidden", !panelOpen);
+  var ctrl = document.querySelector(".leaflet-top.leaflet-left");
+  if(ctrl){
+    ctrl.style.left = panelOpen ? "460px" : "10px";
+  }
+  setTimeout(function(){ map.invalidateSize(); }, 200);
+}
+
+panelToggle.addEventListener("click", function(){
+  panelOpen = !panelOpen;
+  applyLayout();
+});
+
+applyLayout();
+
+/* ========== COLLAPSIBLE SECTIONS ========== */
+var sectionHeaders = document.querySelectorAll(".section-header");
+for (var i = 0; i < sectionHeaders.length; i++) {
+  (function(header){
+    header.addEventListener("click", function(){
+      var section = header.parentElement;
+      var arrow = header.querySelector(".section-arrow");
+      var collapsed = section.classList.toggle("collapsed");
+      if(arrow) arrow.textContent = collapsed ? "▸" : "▾";
+    });
+  })(sectionHeaders[i]);
+}
+
+/* ========== SATELLITE TOGGLE ========== */
+document.getElementById("satToggle").addEventListener("click", function(){
+  satelliteOn = !satelliteOn;
+  if(satelliteOn){
+    map.removeLayer(streets);
+    esriSat.addTo(map);
+  } else {
+    map.removeLayer(esriSat);
+    streets.addTo(map);
+  }
+});
+
+/* ========== GOOGLE MAPS / AUTOCOMPLETE / DIRECTIONS ========== */
+var hasGoogleMaps = (typeof google !== "undefined" && google.maps);
+var directionsService = null;
+
+if (hasGoogleMaps) {
+  try {
+    directionsService = new google.maps.DirectionsService();
+  } catch(e) {
+    console.error("DirectionsService error:", e);
+  }
+}
+
+function attachAC(input){
+  if (!hasGoogleMaps || !google.maps.places) return;
+  try {
+    input._ac = new google.maps.places.Autocomplete(input, { fields:["geometry"] });
+  } catch(e){
+    console.error("Autocomplete error:", e);
+  }
+}
+
+function getLatLngFromInput(input, existing){
+  if (existing) return existing;
+  if (!input || !input._ac || !input._ac.getPlace) return existing;
+  var place = input._ac.getPlace();
+  if (place && place.geometry && place.geometry.location){
+    return [ place.geometry.location.lat(), place.geometry.location.lng() ];
+  }
+  return existing;
+}
+
+function computeRoute(start, end, mode, callback){
+  if (!start || !end) {
+    callback(new Error("Missing start/end"));
+    return;
+  }
+
+  if (!directionsService) {
+    // Fallback: straight line
+    callback(null, [start, end]);
+    return;
+  }
+
+  var travelMode = (mode === "WALK")
+    ? google.maps.TravelMode.WALKING
+    : google.maps.TravelMode.DRIVING;
+
+  var request = {
+    origin:      new google.maps.LatLng(start[0], start[1]),
+    destination: new google.maps.LatLng(end[0],   end[1]),
+    travelMode:  travelMode
+  };
+
+  directionsService.route(request, function(result, status){
+    if (status === google.maps.DirectionsStatus.OK &&
+        result.routes && result.routes.length > 0) {
+      var path = result.routes[0].overview_path;
+      var coords = [];
+      for (var i=0; i<path.length; i++) {
+        coords.push([ path[i].lat(), path[i].lng() ]);
+      }
+      callback(null, coords);
+    } else {
+      console.error("Directions failed:", status);
+      callback(new Error(status));
+    }
+  });
+}
+
+/* ========== COMMON HELPERS ========== */
+function makeMarker(color){
+  var svg =
+    '<svg width="32" height="48" viewBox="0 0 32 48" xmlns="http://www.w3.org/2000/svg">' +
+      '<path d="M16 0 C7 0 0 7 0 16 C0 30 16 48 16 48 C16 48 32 30 32 16 C32 7 25 0 16 0Z" ' +
+            'fill="' + color + '" stroke="white" stroke-width="2"/>' +
+      '<circle cx="16" cy="16" r="6" fill="white"/>' +
+    '</svg>';
+
+  return L.icon({
+    iconUrl: "data:image/svg+xml;base64," + btoa(svg),
+    iconSize:  [32,48],
+    iconAnchor:[16,48]
+  });
+}
+
+function presetColors(){
+  return [
+    {box:"#A72219", text:"#ffffff"},
+    {box:"#D43B2A", text:"#ffffff"},
+    {box:"#E58E26", text:"#000000"},
+    {box:"#F2C94C", text:"#000000"},
+    {box:"#F8E45C", text:"#000000"},
+    {box:"#9CCC65", text:"#000000"},
+    {box:"#43A047", text:"#ffffff"},
+    {box:"#4FC3F7", text:"#000000"},
+    {box:"#2196F3", text:"#ffffff"},
+    {box:"#0D47A1", text:"#ffffff"},
+    {box:"#6A1B9A", text:"#ffffff"}
+  ];
+}
+
+/* ========== ROUTES (ADDRESS-BASED) ========== */
+var routes = [];
+var nextRouteId = 1;
+var routeContainer = document.getElementById("routeContainer");
+
+function getRouteMode(r){
+  var el = r.row.querySelector('input[name="mode-' + r.id + '"]:checked');
+  return el ? el.value : "DRIVE";
+}
+
+function createRouteRow(){
+  var row = document.createElement("div");
+  row.className = "route-row";
+
+  var colors = presetColors();
+  var presetHtml = "";
+  for (var i=0; i<colors.length; i++) {
+    presetHtml +=
+      '<div class="preset-swatch" data-box="' + colors[i].box +
+      '" data-text="' + colors[i].text +
+      '" style="background:' + colors[i].box + ';"></div>';
+  }
+
+  row.innerHTML =
+    '<div class="drag-handle">☰</div>' +
+    '<div class="route-main">' +
+      '<div class="point-row">' +
+        '<div class="point-label">Start:</div>' +
+        '<input class="addr-input start-addr" placeholder="Start address or postcode" />' +
+        '<button type="button" class="pick-btn pick-start" title="Pick start from map">📍</button>' +
+        '<input class="name-input start-name" placeholder="Start label" />' +
+      '</div>' +
+      '<div class="point-row">' +
+        '<div class="point-label">End:</div>' +
+        '<input class="addr-input end-addr" placeholder="End address or postcode" />' +
+        '<button type="button" class="pick-btn pick-end" title="Pick end from map">📍</button>' +
+        '<input class="name-input end-name" placeholder="End label" />' +
+      '</div>' +
+      '<div class="color-row">' +
+        '<div class="color-controls">' +
+          '<label>Box:</label>' +
+          '<input type="color" class="color-input boxColor" value="#2e8b57"/>' +
+          '<label>Text:</label>' +
+          '<input type="color" class="color-input textColor" value="#ffffff"/>' +
+        '</div>' +
+        '<div class="preset-swatches">' + presetHtml + '</div>' +
+      '</div>' +
+      '<div class="bottom-row">' +
+        '<div class="mode-row">' +
+          'Mode: ' +
+          '<label><input type="radio" name="mode-' + nextRouteId + '" value="DRIVE" checked> Drive</label>' +
+          '<label><input type="radio" name="mode-' + nextRouteId + '" value="WALK"> Walk</label>' +
+        '</div>' +
+        '<div class="buttons-row">' +
+          '<button class="toggleRoute">🙈 Hide</button>' +
+          '<button class="removeRoute">✖ Delete</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  routeContainer.appendChild(row);
+
+  var r = {
+    id: nextRouteId++,
+    row: row,
+    startAddrInput:  row.querySelector(".start-addr"),
+    startLabelInput: row.querySelector(".start-name"),
+    endAddrInput:    row.querySelector(".end-addr"),
+    endLabelInput:   row.querySelector(".end-name"),
+    boxInput:        row.querySelector(".boxColor"),
+    textInput:       row.querySelector(".textColor"),
+    visible:         true,
+    polyline:        null,
+    startLatLng:     null,
+    endLatLng:       null,
+    startMarker:     null,
+    endMarker:       null,
+    startLabelMarker:null,
+    endLabelMarker:  null
+  };
+
+  attachAC(r.startAddrInput);
+  attachAC(r.endAddrInput);
+
+  var toggleBtn    = row.querySelector(".toggleRoute");
+  var removeBtn    = row.querySelector(".removeRoute");
+  var pickStartBtn = row.querySelector(".pick-start");
+  var pickEndBtn   = row.querySelector(".pick-end");
+
+  toggleBtn.onclick = function(){ toggleRoute(r, toggleBtn); };
+  removeBtn.onclick = function(){ removeRoute(r); };
+
+  pickStartBtn.onclick = function(){
+    pickMode = { route: r, which: "start" };
+    drawModeSelect.value = "none";
+    setDrawMode("none");
+    alert("Click on the map to set the START point for this route.");
+  };
+
+  pickEndBtn.onclick = function(){
+    pickMode = { route: r, which: "end" };
+    drawModeSelect.value = "none";
+    setDrawMode("none");
+    alert("Click on the map to set the END point for this route.");
+  };
+
+  var swatches = row.querySelectorAll(".preset-swatch");
+  for (var j=0; j<swatches.length; j++) {
+    (function(s){
+      s.addEventListener("click", function(){
+        var box  = s.getAttribute("data-box");
+        var text = s.getAttribute("data-text");
+        r.boxInput.value  = box;
+        r.textInput.value = text;
+        var mode = getRouteMode(r);
+        if (r.startLatLng || r.endLatLng || r.polyline) {
+          drawRoute(r, mode);
+        }
+      });
+    })(swatches[j]);
+  }
+
+  var startAc = r.startAddrInput._ac;
+  if (startAc && startAc.addListener) {
+    startAc.addListener("place_changed", function(){
+      r.startLatLng = null;
+      var mode = getRouteMode(r);
+      drawRoute(r, mode);
+    });
+  }
+
+  var endAc = r.endAddrInput._ac;
+  if (endAc && endAc.addListener) {
+    endAc.addListener("place_changed", function(){
+      r.endLatLng = null;
+      var mode = getRouteMode(r);
+      drawRoute(r, mode);
+    });
+  }
+
+  routes.push(r);
+  return r;
+}
+
+createRouteRow();
+
+document.getElementById("addRouteBtn").onclick = function(){
+  createRouteRow();
+};
+
+try {
+  Sortable.create(routeContainer,{handle:".drag-handle",animation:150});
+} catch(e) {
+  console.error("Sortable error:", e);
+}
+
+/* ROUTE ACTIONS */
+function removeRoute(r){
+  if(r.polyline) { routeLayer.removeLayer(r.polyline); r.polyline = null; }
+  var arr = [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker];
+  for (var i=0;i<arr.length;i++){
+    if(arr[i]) routeMarkerLayer.removeLayer(arr[i]);
+  }
+  r.startMarker=r.endMarker=r.startLabelMarker=r.endLabelMarker=null;
+  routes = routes.filter(function(x){ return x!==r; });
+  r.row.remove();
+}
+
+function toggleRoute(r, btn){
+  r.visible = !r.visible;
+  btn.textContent = r.visible ? "🙈 Hide" : "👁 Show";
+
+  if(r.polyline){
+    if(r.visible) routeLayer.addLayer(r.polyline);
+    else routeLayer.removeLayer(r.polyline);
+  }
+
+  var arr = [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker];
+  for (var i=0;i<arr.length;i++){
+    if(!arr[i]) continue;
+    if(r.visible) routeMarkerLayer.addLayer(arr[i]);
+    else routeMarkerLayer.removeLayer(arr[i]);
+  }
+}
+
+/* DRAW ONE ROUTE (using DirectionsService) */
+function drawRoute(r, mode){
+  if(r.polyline) { routeLayer.removeLayer(r.polyline); r.polyline = null; }
+  var arr = [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker];
+  for (var i=0;i<arr.length;i++){
+    if(arr[i]) routeMarkerLayer.removeLayer(arr[i]);
+  }
+  r.startMarker=r.endMarker=r.startLabelMarker=r.endLabelMarker=null;
+
+  r.startLatLng = getLatLngFromInput(r.startAddrInput, r.startLatLng);
+  r.endLatLng   = getLatLngFromInput(r.endAddrInput,   r.endLatLng);
+
+  var font = document.getElementById("labelFont").value;
+  var size = document.getElementById("labelFontSize").value;
+
+  var haveStart = !!r.startLatLng;
+  var haveEnd   = !!r.endLatLng;
+
+  if(haveStart){
+    var sm = L.marker(r.startLatLng,{
+      draggable:true,
+      icon: makeMarker(r.boxInput.value)
+    });
+    if(r.visible) sm.addTo(routeMarkerLayer);
+    r.startMarker = sm;
+
+    var startText = r.startLabelInput.value || "Start";
+    var sl = L.marker(r.startLatLng,{
+      icon:L.divIcon({
+        html: '<div class="label-box" style="background:' + r.boxInput.value +
+              '; color:' + r.textInput.value +
+              '; font-family:' + font + '; font-size:' + size + ';">' +
+              startText + '</div>',
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[0,-10]
+      }),
+      interactive:false
+    });
+    if(r.visible) sl.addTo(routeMarkerLayer);
+    r.startLabelMarker = sl;
+
+    sm.on("drag", function(e){ sl.setLatLng(e.latlng); });
+    sm.on("dragend", function(e){
+      r.startLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+      drawRoute(r, getRouteMode(r));
+    });
+  }
+
+  if(haveEnd){
+    var em = L.marker(r.endLatLng,{
+      draggable:true,
+      icon: makeMarker(r.boxInput.value)
+    });
+    if(r.visible) em.addTo(routeMarkerLayer);
+    r.endMarker = em;
+
+    var endText = r.endLabelInput.value || "End";
+    var el = L.marker(r.endLatLng,{
+      icon:L.divIcon({
+        html:'<div class="label-box" style="background:' + r.boxInput.value +
+             '; color:' + r.textInput.value +
+             '; font-family:' + font + '; font-size:' + size + ';">' +
+             endText + '</div>',
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[0,-10]
+      }),
+      interactive:false
+    });
+    if(r.visible) el.addTo(routeMarkerLayer);
+    r.endLabelMarker = el;
+
+    em.on("drag", function(e){ el.setLatLng(e.latlng); });
+    em.on("dragend", function(e){
+      r.endLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
+      drawRoute(r, getRouteMode(r));
+    });
+  }
+
+  if (!(haveStart && haveEnd)) return;
+
+  computeRoute(r.startLatLng, r.endLatLng, mode, function(err, coords){
+    if (err || !coords || !coords.length) return;
+    var latlngs = [];
+    for (var i=0;i<coords.length;i++){
+      latlngs.push(coords[i]);
+    }
+    var dash = (mode === "WALK") ? "6,10" : null;
+    var poly = L.polyline(latlngs,{
+      color:r.boxInput.value,
+      weight:5,
+      dashArray: dash
+    });
+    r.polyline = poly;
+    if(r.visible) poly.addTo(routeLayer);
+  });
+}
+
+/* DRAW ALL ROUTES */
+document.getElementById("drawAllBtn").onclick = function(){
+  for (var i=0;i<routes.length;i++){
+    var r = routes[i];
+    var mode = getRouteMode(r);
+    drawRoute(r, mode);
+  }
+
+  setTimeout(function(){
+    var b = null;
+    routeLayer.eachLayer(function(l){
+      if (!l.getBounds) return;
+      if (!b) b = l.getBounds(); else b.extend(l.getBounds());
+    });
+    if (b) map.fitBounds(b,{padding:[40,40]});
+  }, 1000);
+};
+
+/* ========== DRAWN ROUTES (FREEHAND & POINTS) ========== */
+var drawnRoutes = [];
+var nextDrawnRouteId = 1;
+var drawnRouteContainer = document.getElementById("drawnRouteContainer");
+
+var drawModeSelect = document.getElementById("drawModeSelect");
+var cancelDrawBtn  = document.getElementById("cancelDrawBtn");
+var drawHint       = document.getElementById("drawHint");
+
+var drawMode      = "none";
+var isDrawing     = false;
+var tempDrawLine  = null;
+var tempDrawPoints= [];
+
+function setDrawMode(mode){
+  drawMode = mode;
+  isDrawing = false;
+  if(tempDrawLine){
+    drawnRouteLayer.removeLayer(tempDrawLine);
+    tempDrawLine = null;
+  }
+  tempDrawPoints = [];
+
+  cancelDrawBtn.style.display = (mode==="freehand" || mode==="points") ? "block" : "none";
+  cancelDrawBtn.disabled = true;
+  drawHint.style.display = (mode==="none") ? "none" : "block";
+
+  if(mode==="freehand"){
+    drawHint.textContent = "Freehand: Hold the mouse button and draw on the map. Release to finish.";
+  } else if(mode==="points"){
+    drawHint.textContent = "Point-by-point: Click to add points. Double-click to finish. ESC or Cancel to abort.";
+  } else {
+    drawHint.textContent = "";
+  }
+}
+
+drawModeSelect.addEventListener("change", function(){
+  pickMode = null;
+  setDrawMode(drawModeSelect.value);
+});
+
+cancelDrawBtn.addEventListener("click", function(){
+  if(isDrawing){
+    isDrawing = false;
+    if(tempDrawLine){
+      drawnRouteLayer.removeLayer(tempDrawLine);
+      tempDrawLine = null;
+    }
+    tempDrawPoints = [];
+    cancelDrawBtn.disabled = true;
+  }
+});
+
+document.addEventListener("keydown", function(e){
+  if(e.key==="Escape" && isDrawing){
+    isDrawing = false;
+    if(tempDrawLine){
+      drawnRouteLayer.removeLayer(tempDrawLine);
+      tempDrawLine = null;
+    }
+    tempDrawPoints = [];
+    cancelDrawBtn.disabled = true;
+  }
+});
+
+function buildLabelHTML(text, bg, fg, font, size){
+  return '<div class="label-box" style="background:' + bg +
+         '; color:' + fg +
+         '; font-family:' + font +
+         '; font-size:' + size + ';">' +
+         text + '</div>';
+}
+
+function updateDrawnRouteGraphics(dr){
+  if(!dr.polyline) return;
+
+  var dash = null;
+  if(dr.styleSelect.value === "dashed") dash = "6,10";
+  if(dr.styleSelect.value === "dotted") dash = "2,8";
+  dr.polyline.setStyle({
+    color: dr.boxInput.value,
+    weight:4,
+    dashArray: dash
+  });
+
+  var font=document.getElementById("labelFont").value;
+  var size=document.getElementById("labelFontSize").value;
+
+  var startText = dr.startLabelInput.value || "Start";
+  var endText   = dr.endLabelInput.value   || "End";
+
+  if(dr.startLabelMarker){
+    dr.startLabelMarker.setIcon(L.divIcon({
+      html: buildLabelHTML(startText, dr.boxInput.value, dr.textInput.value, font, size),
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[0,-10]
+    }));
+  }
+  if(dr.endLabelMarker){
+    dr.endLabelMarker.setIcon(L.divIcon({
+      html: buildLabelHTML(endText, dr.boxInput.value, dr.textInput.value, font, size),
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[0,-10]
+    }));
+  }
+
+  if(dr.startMarker){
+    dr.startMarker.setIcon(makeMarker(dr.boxInput.value));
+  }
+  if(dr.endMarker){
+    dr.endMarker.setIcon(makeMarker(dr.boxInput.value));
+  }
+}
+
+function attachDrawnRouteEvents(dr, toggleBtn, removeBtn){
+  toggleBtn.onclick = function(){
+    dr.visible = !dr.visible;
+    toggleBtn.textContent = dr.visible ? "🙈 Hide" : "👁 Show";
+
+    if(dr.polyline){
+      if(dr.visible) drawnRouteLayer.addLayer(dr.polyline);
+      else drawnRouteLayer.removeLayer(dr.polyline);
+    }
+    var arr = [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker];
+    for (var i=0;i<arr.length;i++){
+      if(!arr[i]) continue;
+      if(dr.visible) drawnMarkerLayer.addLayer(arr[i]);
+      else drawnMarkerLayer.removeLayer(arr[i]);
+    }
+    for (var j=0;j<dr.handleMarkers.length;j++){
+      if(dr.visible) drawnMarkerLayer.addLayer(dr.handleMarkers[j]);
+      else drawnMarkerLayer.removeLayer(dr.handleMarkers[j]);
+    }
+  };
+
+  removeBtn.onclick = function(){
+    if(dr.polyline) { drawnRouteLayer.removeLayer(dr.polyline); dr.polyline=null; }
+    var arr = [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker];
+    for (var i=0;i<arr.length;i++){
+      if(arr[i]) drawnMarkerLayer.removeLayer(arr[i]);
+    }
+    for (var j=0;j<dr.handleMarkers.length;j++){
+      drawnMarkerLayer.removeLayer(dr.handleMarkers[j]);
+    }
+    drawnRoutes = drawnRoutes.filter(function(x){ return x!==dr; });
+    dr.row.remove();
+  };
+}
+
+function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
+  var row = document.createElement("div");
+  row.className = "drawn-route-row";
+
+  var colors = presetColors();
+  var presetHtml = "";
+  for (var i=0;i<colors.length;i++){
+    presetHtml +=
+      '<div class="preset-swatch" data-box="' + colors[i].box +
+      '" data-text="' + colors[i].text +
+      '" style="background:' + colors[i].box + ';"></div>';
+  }
+
+  row.innerHTML =
+    '<div class="drag-handle">☰</div>' +
+    '<div class="drawn-route-main">' +
+      '<div class="point-row">' +
+        '<div class="point-label">Start:</div>' +
+        '<div></div><div></div>' +
+        '<input class="name-input drawn-start-label" placeholder="Start label" />' +
+      '</div>' +
+      '<div class="point-row">' +
+        '<div class="point-label">End:</div>' +
+        '<div></div><div></div>' +
+        '<input class="name-input drawn-end-label" placeholder="End label" />' +
+      '</div>' +
+      '<div class="color-row">' +
+        '<div class="color-controls">' +
+          '<label>Box:</label>' +
+          '<input type="color" class="color-input drawnBoxColor" value="#2e8b57"/>' +
+          '<label>Text:</label>' +
+          '<input type="color" class="color-input drawnTextColor" value="#ffffff"/>' +
+          '<label>Style:</label>' +
+          '<select class="drawnStyleSelect">' +
+            '<option value="solid">Solid</option>' +
+            '<option value="dashed">Dashed</option>' +
+            '<option value="dotted">Dotted</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="preset-swatches">' + presetHtml + '</div>' +
+      '</div>' +
+      '<div class="buttons-row">' +
+        '<button class="toggleDrawnRoute">🙈 Hide</button>' +
+        '<button class="removeDrawnRoute">✖ Delete</button>' +
+      '</div>' +
+    '</div>';
+
+  drawnRouteContainer.appendChild(row);
+
+  var startLabelInput = row.querySelector(".drawn-start-label");
+  var endLabelInput   = row.querySelector(".drawn-end-label");
+  var boxInput        = row.querySelector(".drawnBoxColor");
+  var textInput       = row.querySelector(".drawnTextColor");
+  var styleSelect     = row.querySelector(".drawnStyleSelect");
+
+  startLabelInput.value = startLabel || "Start";
+  endLabelInput.value   = endLabel   || "End";
+  boxInput.value        = boxColor   || "#2e8b57";
+  textInput.value       = textColor  || "#ffffff";
+  styleSelect.value     = style      || "solid";
+
+  return {
+    row: row,
+    startLabelInput: startLabelInput,
+    endLabelInput: endLabelInput,
+    boxInput: boxInput,
+    textInput: textInput,
+    styleSelect: styleSelect
+  };
+}
+
+function createDrawnRoute(latlngs){
+  if(latlngs.length < 2) return;
+
+  var startDefault = "Start";
+  var endDefault   = "End";
+  var startLabel = prompt("Name the START point:", startDefault) || startDefault;
+  var endLabel   = prompt("Name the END point:", endDefault)     || endDefault;
+
+  var rowBits = createDrawnRouteRow(startLabel, endLabel, "#2e8b57", "#ffffff", "solid");
+  var dr = {
+    id: nextDrawnRouteId++,
+    row: rowBits.row,
+    startLabelInput: rowBits.startLabelInput,
+    endLabelInput:   rowBits.endLabelInput,
+    boxInput:        rowBits.boxInput,
+    textInput:       rowBits.textInput,
+    styleSelect:     rowBits.styleSelect,
+    visible:         true,
+    latlngs:         latlngs.slice(),
+    polyline:        null,
+    startMarker:     null,
+    endMarker:       null,
+    startLabelMarker:null,
+    endLabelMarker:  null,
+    handleMarkers:   []
+  };
+
+  var font=document.getElementById("labelFont").value;
+  var size=document.getElementById("labelFontSize").value;
+
+  var poly = L.polyline(dr.latlngs,{
+    color:dr.boxInput.value,
+    weight:4
+  });
+  dr.polyline = poly;
+  drawnRouteLayer.addLayer(poly);
+
+  var startLatLng = dr.latlngs[0];
+  var endLatLng   = dr.latlngs[dr.latlngs.length-1];
+
+  var startMarker = L.marker(startLatLng,{
+    icon: makeMarker(dr.boxInput.value)
+  }).addTo(drawnMarkerLayer);
+
+  var endMarker = L.marker(endLatLng,{
+    icon: makeMarker(dr.boxInput.value)
+  }).addTo(drawnMarkerLayer);
+
+  var startLabelMarker = L.marker(startLatLng,{
+    icon:L.divIcon({
+      html: buildLabelHTML(dr.startLabelInput.value || "Start", dr.boxInput.value, dr.textInput.value, font, size),
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[0,-10]
+    }),
+    interactive:false
+  }).addTo(drawnMarkerLayer);
+
+  var endLabelMarker = L.marker(endLatLng,{
+    icon:L.divIcon({
+      html: buildLabelHTML(dr.endLabelInput.value || "End", dr.boxInput.value, dr.textInput.value, font, size),
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[0,-10]
+    }),
+    interactive:false
+  }).addTo(drawnMarkerLayer);
+
+  dr.startMarker      = startMarker;
+  dr.endMarker        = endMarker;
+  dr.startLabelMarker = startLabelMarker;
+  dr.endLabelMarker   = endLabelMarker;
+
+  dr.latlngs.forEach(function(pt, idx){
+    var h = L.marker(pt,{
+      draggable:true,
+      icon:L.divIcon({
+        className:"",
+        html:'<div style="width:8px;height:8px;border-radius:50%;border:1px solid #000;background:#fff;"></div>',
+        iconSize:[8,8],
+        iconAnchor:[4,4]
+      })
+    }).addTo(drawnMarkerLayer);
+
+    h.on("drag", function(e){
+      var ll = e.target.getLatLng();
+      dr.latlngs[idx] = ll;
+      dr.polyline.setLatLngs(dr.latlngs);
+      if(idx===0){
+        dr.startMarker.setLatLng(ll);
+        dr.startLabelMarker.setLatLng(ll);
+      }
+      if(idx===dr.latlngs.length-1){
+        dr.endMarker.setLatLng(ll);
+        dr.endLabelMarker.setLatLng(ll);
+      }
+    });
+
+    dr.handleMarkers.push(h);
+  });
+
+  var toggleBtn = dr.row.querySelector(".toggleDrawnRoute");
+  var removeBtn = dr.row.querySelector(".removeDrawnRoute");
+  attachDrawnRouteEvents(dr, toggleBtn, removeBtn);
+
+  dr.boxInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+  dr.textInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+  dr.styleSelect.addEventListener("change",function(){ updateDrawnRouteGraphics(dr); });
+  dr.startLabelInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+  dr.endLabelInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+
+  var swatches = dr.row.querySelectorAll(".preset-swatch");
+  for (var i=0;i<swatches.length;i++){
+    (function(s){
+      s.addEventListener("click", function(){
+        dr.boxInput.value = s.getAttribute("data-box");
+        dr.textInput.value = s.getAttribute("data-text");
+        updateDrawnRouteGraphics(dr);
+      });
+    })(swatches[i]);
+  }
+
+  drawnRoutes.push(dr);
+  return dr;
+}
+
+try {
+  Sortable.create(drawnRouteContainer,{handle:".drag-handle",animation:150});
+} catch(e) {
+  console.error("Sortable drawn error:", e);
+}
+
+/* ========== FREE MARKERS & DRAWING MODES ========== */
+var dropMode=false;
+var pickMode=null;
+
+document.getElementById("addFreeMarkerBtn").onclick=function(){
+  dropMode=true;
+  drawModeSelect.value="none";
+  setDrawMode("none");
+  alert("Click the map to place a custom marker.");
+};
+
+var freeMarkerId=1;
+var freeMarkers=[];
+
+function createFreeMarker(latlng,text,boxColor,textColor){
+  var font=document.getElementById("labelFont").value;
+  var size=document.getElementById("labelFontSize").value;
+
+  var id=freeMarkerId++;
+
+  var marker=L.marker(latlng,{
+    draggable:true,
+    icon: makeMarker(boxColor)
+  }).addTo(freeMarkerLayer);
+
+  var labelMarker=L.marker(latlng,{
+    icon:L.divIcon({
+      html:'<div class="label-box" style="background:' + boxColor +
+           '; color:' + textColor +
+           '; font-family:' + font +
+           '; font-size:' + size + ';">' +
+           text +
+           '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[0,-10]
+    }),
+    interactive:false
+  }).addTo(freeMarkerLayer);
+
+  var fm = {
+    id: id,
+    marker: marker,
+    labelMarker: labelMarker,
+    text: text,
+    boxColor: boxColor,
+    textColor: textColor
+  };
+
+  freeMarkers.push(fm);
+
+  marker.on("drag",function(e){ labelMarker.setLatLng(e.latlng); });
+  marker.on("click",function(){ openFreeMarkerEditor(fm); });
+}
+
+function openFreeMarkerEditor(fm){
+  var html=
+   '<div class="marker-editor">' +
+     '<h4>Edit Marker</h4>' +
+     '<label>Label:</label>' +
+     '<input id="fm-label-' + fm.id + '" value="' + fm.text + '" />' +
+     '<label>Box:' +
+       '<input type="color" id="fm-box-' + fm.id + '" value="' + fm.boxColor + '">' +
+     '</label>' +
+     '<label>Text:' +
+       '<input type="color" id="fm-text-' + fm.id + '" value="' + fm.textColor + '">' +
+     '</label>' +
+     '<div class="marker-editor-buttons">' +
+       '<button class="marker-editor-save" id="fm-save-' + fm.id + '">Save</button>' +
+       '<button class="marker-editor-delete" id="fm-del-' + fm.id + '">Delete</button>' +
+     '</div>' +
+   '</div>';
+
+  L.popup()
+    .setLatLng(fm.marker.getLatLng())
+    .setContent(html)
+    .openOn(map);
+
+  setTimeout(function(){
+    var labelIn=document.getElementById('fm-label-' + fm.id);
+    var boxIn=document.getElementById('fm-box-' + fm.id);
+    var textIn=document.getElementById('fm-text-' + fm.id);
+
+    document.getElementById('fm-save-' + fm.id).onclick=function(){
+      fm.text=labelIn.value||"Point";
+      fm.boxColor=boxIn.value;
+      fm.textColor=textIn.value;
+
+      var font=document.getElementById("labelFont").value;
+      var size=document.getElementById("labelFontSize").value;
+
+      fm.labelMarker.setIcon(L.divIcon({
+        html:'<div class="label-box" style="background:' + fm.boxColor +
+             '; color:' + fm.textColor +
+             '; font-family:' + font +
+             '; font-size:' + size + ';">' +
+             fm.text +
+             '</div>',
+        className:"",
+        iconSize:[0,0],
+        iconAnchor:[0,-10]
+      }));
+
+      fm.marker.setIcon(makeMarker(fm.boxColor));
+
+      map.closePopup();
+    };
+
+    document.getElementById('fm-del-' + fm.id).onclick=function(){
+      freeMarkerLayer.removeLayer(fm.marker);
+      freeMarkerLayer.removeLayer(fm.labelMarker);
+      var idx=freeMarkers.findIndex(function(x){ return x.id===fm.id; });
+      if(idx>=0) freeMarkers.splice(idx,1);
+      map.closePopup();
+    };
+
+  },20);
+}
+
+/* Freehand drawing */
+map.on("mousedown", function(e){
+  if(drawMode==="freehand"){
+    isDrawing = true;
+    tempDrawPoints = [e.latlng];
+    tempDrawLine = L.polyline(tempDrawPoints,{color:"#000",weight:3}).addTo(drawnRouteLayer);
+    map.dragging.disable();
+    cancelDrawBtn.disabled = false;
+  }
+});
+
+map.on("mousemove", function(e){
+  if(drawMode==="freehand" && isDrawing && tempDrawLine){
+    tempDrawPoints.push(e.latlng);
+    tempDrawLine.setLatLngs(tempDrawPoints);
+  }
+});
+
+map.on("mouseup", function(e){
+  if(drawMode==="freehand" && isDrawing){
+    map.dragging.enable();
+    isDrawing = false;
+    cancelDrawBtn.disabled = true;
+
+    if(!tempDrawLine || tempDrawPoints.length<2){
+      if(tempDrawLine) drawnRouteLayer.removeLayer(tempDrawLine);
+      tempDrawLine = null;
+      tempDrawPoints = [];
+      return;
+    }
+
+    var pts = tempDrawPoints.slice();
+    drawnRouteLayer.removeLayer(tempDrawLine);
+    tempDrawLine = null;
+    tempDrawPoints = [];
+
+    createDrawnRoute(pts);
+    drawModeSelect.value="none";
+    setDrawMode("none");
+  }
+});
+
+/* Point-by-point drawing & map clicks */
+map.on("click", function(e){
+  if(drawMode==="points"){
+    if(!isDrawing){
+      isDrawing = true;
+      tempDrawPoints = [e.latlng];
+      tempDrawLine = L.polyline(tempDrawPoints,{color:"#000",weight:3}).addTo(drawnRouteLayer);
+      cancelDrawBtn.disabled = true;
+    } else {
+      tempDrawPoints.push(e.latlng);
+      tempDrawLine.setLatLngs(tempDrawPoints);
+      cancelDrawBtn.disabled = false;
+    }
+    return;
+  }
+
+  if(dropMode){
+    dropMode=false;
+    var t=prompt("Marker label text:","Point");
+    if(t===null) return;
+    createFreeMarker(e.latlng, t||"Point", "#2e8b57", "#ffffff");
+    return;
+  }
+
+  if(pickMode){
+    var route = pickMode.route;
+    var which = pickMode.which;
+    pickMode = null;
+
+    if(which === "start"){
+      route.startLatLng = [e.latlng.lat, e.latlng.lng];
+    } else {
+      route.endLatLng = [e.latlng.lat, e.latlng.lng];
+    }
+
+    var mode = getRouteMode(route);
+    drawRoute(route,mode);
+    return;
+  }
+});
+
+map.on("dblclick", function(e){
+  if(drawMode==="points" && isDrawing){
+    L.DomEvent.stop(e);
+    isDrawing = false;
+    cancelDrawBtn.disabled = true;
+
+    if(!tempDrawLine || tempDrawPoints.length<2){
+      if(tempDrawLine) drawnRouteLayer.removeLayer(tempDrawLine);
+      tempDrawLine = null;
+      tempDrawPoints = [];
+      return;
+    }
+
+    var pts = tempDrawPoints.slice();
+    drawnRouteLayer.removeLayer(tempDrawLine);
+    tempDrawLine = null;
+    tempDrawPoints = [];
+
+    createDrawnRoute(pts);
+    drawModeSelect.value="none";
+    setDrawMode("none");
+  }
+});
+</script>
+
+</body>
+</html>
