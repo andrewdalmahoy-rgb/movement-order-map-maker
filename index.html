@@ -360,8 +360,8 @@
           </select>
 
           <select id="labelFontSize" style="flex:1; padding:6px;">
-            <option selected>12px</option>
-            <option>14px</option>
+            <option>12px</option>
+            <option selected>14px</option>
             <option>16px</option><option>18px</option><option>20px</option>
           </select>
         </div>
@@ -394,9 +394,6 @@
 
     <h3 style="margin-top:16px;">Drawn Routes</h3>
     <div id="drawnRouteContainer"></div>
-
-    <h3 style="margin-top:16px;">Dropped Pins</h3>
-    <div id="droppedPinContainer"></div>
   </div>
 </div>
 
@@ -863,7 +860,6 @@ document.getElementById("drawAllBtn").onclick = async function(){
 let drawnRoutes = [];
 let nextDrawnRouteId = 1;
 const drawnRouteContainer = document.getElementById("drawnRouteContainer");
-const droppedPinContainer = document.getElementById("droppedPinContainer");
 
 const drawModeSelect = document.getElementById("drawModeSelect");
 const cancelDrawBtn  = document.getElementById("cancelDrawBtn");
@@ -1069,7 +1065,14 @@ function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
   textInput.value       = textColor  || "#ffffff";
   styleSelect.value     = style      || "solid";
 
-  return { row: row, startLabelInput: startLabelInput, endLabelInput: endLabelInput, boxInput: boxInput, textInput: textInput, styleSelect: styleSelect };
+  return {
+    row: row,
+    startLabelInput: startLabelInput,
+    endLabelInput: endLabelInput,
+    boxInput: boxInput,
+    textInput: textInput,
+    styleSelect: styleSelect
+  };
 }
 
 function createDrawnRoute(latlngs){
@@ -1198,7 +1201,6 @@ function createDrawnRoute(latlngs){
 }
 
 Sortable.create(drawnRouteContainer,{handle:".drag-handle",animation:150});
-Sortable.create(droppedPinContainer,{handle:".drag-handle",animation:150});
 
 /* ======================== DRAWING & FREE MARKERS ======================== */
 let dropMode=false;
@@ -1213,74 +1215,6 @@ document.getElementById("addFreeMarkerBtn").onclick=function(){
 
 let freeMarkerId=1;
 const freeMarkers=[];
-
-function addDroppedPinRow(fm){
-  const row = document.createElement("div");
-  row.className = "drawn-route-row";
-
-  row.innerHTML =
-    '<div class="drag-handle">☰</div>' +
-    '<div class="drawn-route-main">' +
-      '<div class="point-row">' +
-        '<div class="point-label">Pin:</div>' +
-        '<div></div>' +
-        '<div></div>' +
-        '<input class="name-input drop-label" placeholder="Pin label" />' +
-      '</div>' +
-      '<div class="buttons-row">' +
-        '<button class="toggleDropPin">🙈 Hide</button>' +
-        '<button class="removeDropPin">✖ Delete</button>' +
-      '</div>' +
-    '</div>';
-
-  droppedPinContainer.appendChild(row);
-
-  const labelInput = row.querySelector(".drop-label");
-  const toggleBtn  = row.querySelector(".toggleDropPin");
-  const removeBtn  = row.querySelector(".removeDropPin");
-
-  labelInput.value = fm.text;
-
-  labelInput.addEventListener("input", function(){
-    fm.text = labelInput.value || "Point";
-    const font = document.getElementById("labelFont").value;
-    const size = document.getElementById("labelFontSize").value;
-    fm.labelMarker.setIcon(L.divIcon({
-      html:'<div class="label-box" style="background:' + fm.boxColor +
-           '; color:' + fm.textColor +
-           '; font-family:' + font +
-           '; font-size:' + size + ';">' +
-           fm.text +
-           '</div>',
-      className:"",
-      iconSize:[0,0],
-      iconAnchor:[0,-10]
-    }));
-  });
-
-  toggleBtn.onclick = function(){
-    fm.visible = !fm.visible;
-    toggleBtn.textContent = fm.visible ? "🙈 Hide" : "👁 Show";
-    if(fm.visible){
-      freeMarkerLayer.addLayer(fm.marker);
-      freeMarkerLayer.addLayer(fm.labelMarker);
-    } else {
-      freeMarkerLayer.removeLayer(fm.marker);
-      freeMarkerLayer.removeLayer(fm.labelMarker);
-    }
-  };
-
-  removeBtn.onclick = function(){
-    freeMarkerLayer.removeLayer(fm.marker);
-    freeMarkerLayer.removeLayer(fm.labelMarker);
-    const idx = freeMarkers.indexOf(fm);
-    if(idx>=0) freeMarkers.splice(idx,1);
-    row.remove();
-  };
-
-  fm.row = row;
-  fm.labelInput = labelInput;
-}
 
 function createFreeMarker(latlng,text,boxColor,textColor){
   const font=document.getElementById("labelFont").value;
@@ -1314,21 +1248,16 @@ function createFreeMarker(latlng,text,boxColor,textColor){
     labelMarker: labelMarker,
     text: text,
     boxColor: boxColor,
-    textColor: textColor,
-    visible: true,
-    row: null,
-    labelInput: null
+    textColor: textColor
   };
   freeMarkers.push(fm);
 
   marker.on("drag",function(e){ labelMarker.setLatLng(e.latlng); });
   marker.on("click",function(){ openFreeMarkerEditor(fm); });
-
-  addDroppedPinRow(fm);
 }
 
 function openFreeMarkerEditor(fm){
-  const html =
+  const html=
    '<div class="marker-editor">' +
      '<h4>Edit Marker</h4>' +
      '<label>Label:</label>' +
@@ -1377,21 +1306,14 @@ function openFreeMarkerEditor(fm){
 
       fm.marker.setIcon(makeMarker(fm.boxColor));
 
-      if(fm.labelInput){
-        fm.labelInput.value = fm.text;
-      }
-
       map.closePopup();
     };
 
     document.getElementById('fm-del-' + fm.id).onclick=function(){
       freeMarkerLayer.removeLayer(fm.marker);
       freeMarkerLayer.removeLayer(fm.labelMarker);
-      const idx=freeMarkers.indexOf(fm);
+      const idx=freeMarkers.findIndex(function(x){ return x.id===fm.id; });
       if(idx>=0) freeMarkers.splice(idx,1);
-      if(fm.row){
-        fm.row.remove();
-      }
       map.closePopup();
     };
 
@@ -1470,7 +1392,8 @@ map.on("click", function(e){
   }
 
   if(pickMode){
-    const { route, which } = pickMode;
+    var route = pickMode.route;
+    var which = pickMode.which;
     pickMode = null;
 
     if(which === "start"){
@@ -1479,7 +1402,7 @@ map.on("click", function(e){
       route.endLatLng = [e.latlng.lat, e.latlng.lng];
     }
 
-    const mode = getRouteMode(route);
+    var mode = getRouteMode(route);
     drawRoute(route,mode);
     return;
   }
@@ -1508,8 +1431,6 @@ map.on("dblclick", function(e){
     setDrawMode("none");
   }
 });
-
-/* ======================== SATELLITE TOGGLE END ======================== */
 </script>
 
 </body>
