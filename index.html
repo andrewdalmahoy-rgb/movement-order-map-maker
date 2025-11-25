@@ -61,8 +61,7 @@
     .sidebar.hidden { transform:translateX(-100%); }
 
     .route-row,
-    .drawn-route-row,
-    .free-marker-row {
+    .drawn-route-row {
       display:grid;
       grid-template-columns: 28px 1fr;
       grid-template-areas: "handle main";
@@ -83,8 +82,7 @@
     }
 
     .route-main,
-    .drawn-route-main,
-    .free-marker-main {
+    .drawn-route-main {
       grid-area:main;
       display:flex;
       flex-direction:column;
@@ -146,11 +144,29 @@
       flex-wrap:wrap;
     }
 
-    .color-select {
-      padding:4px 6px;
+    .color-input {
+      width:40px;
+      height:32px;
+      border:none;
       border-radius:4px;
-      border:1px solid #aaa;
-      font-size:13px;
+      cursor:pointer;
+      padding:0;
+    }
+
+    .preset-swatches {
+      width:100%;
+      display:grid;
+      grid-template-columns:repeat(11, 1fr);
+      gap:4px;
+    }
+
+    .preset-swatch {
+      width:100%;
+      padding-top:100%;
+      border-radius:3px;
+      cursor:pointer;
+      border:1px solid rgba(0,0,0,0.25);
+      box-sizing:border-box;
     }
 
     .bottom-row {
@@ -180,9 +196,7 @@
     .removeRoute,
     .toggleRoute,
     .removeDrawnRoute,
-    .toggleDrawnRoute,
-    .toggleFreeMarker,
-    .removeFreeMarker {
+    .toggleDrawnRoute {
       border:none;
       border-radius:4px;
       padding:6px 10px;
@@ -191,15 +205,13 @@
     }
 
     .removeRoute,
-    .removeDrawnRoute,
-    .removeFreeMarker {
+    .removeDrawnRoute {
       background:#b22222;
       color:white;
     }
 
     .toggleRoute,
-    .toggleDrawnRoute,
-    .toggleFreeMarker {
+    .toggleDrawnRoute {
       background:#666;
       color:white;
     }
@@ -226,9 +238,7 @@
       white-space:nowrap;
       box-shadow:0 2px 6px rgba(0,0,0,0.3);
       line-height:1.2;
-      /* labels must be draggable/clickable */
-      pointer-events:auto;
-      cursor:move;
+      pointer-events:none;
     }
 
     /* Floating buttons */
@@ -386,7 +396,7 @@
     <div id="drawnRouteContainer"></div>
 
     <h3 style="margin-top:16px;">Dropped Pins</h3>
-    <div id="freeMarkerContainer"></div>
+    <div id="droppedPinContainer"></div>
   </div>
 </div>
 
@@ -411,14 +421,9 @@ let satelliteOn = false;
 
 const routeLayer = L.layerGroup().addTo(map);
 const routeMarkerLayer = L.layerGroup().addTo(map);
-const routeLeaderLayer = L.layerGroup().addTo(map);
-
 const freeMarkerLayer = L.layerGroup().addTo(map);
-const freeLeaderLayer = L.layerGroup().addTo(map);
-
 const drawnRouteLayer = L.layerGroup().addTo(map);
 const drawnMarkerLayer = L.layerGroup().addTo(map);
-const drawnLeaderLayer = L.layerGroup().addTo(map);
 
 /* ======================== SIDEBAR & ZOOM LAYOUT ======================== */
 const sidebar = document.getElementById("sidebar");
@@ -442,8 +447,8 @@ panelToggle.addEventListener("click",()=>{
 applyLayout();
 
 /* ======================== COLLAPSIBLE SECTIONS ======================== */
-document.querySelectorAll(".section-header").forEach(header=>{
-  header.addEventListener("click",()=>{
+document.querySelectorAll(".section-header").forEach(function(header){
+  header.addEventListener("click",function(){
     const section = header.parentElement;
     const arrow = header.querySelector(".section-arrow");
     const collapsed = section.classList.toggle("collapsed");
@@ -452,7 +457,7 @@ document.querySelectorAll(".section-header").forEach(header=>{
 });
 
 /* ======================== SATELLITE ======================== */
-document.getElementById("satToggle").addEventListener("click",()=>{
+document.getElementById("satToggle").addEventListener("click",function(){
   satelliteOn = !satelliteOn;
   if(satelliteOn){
     map.removeLayer(streets);
@@ -463,55 +468,12 @@ document.getElementById("satToggle").addEventListener("click",()=>{
   }
 });
 
-/* ======================== LABEL STYLE HELPERS ======================== */
-function getLabelFont(){
-  return document.getElementById("labelFont").value;
-}
-function getLabelFontSize(){
-  return document.getElementById("labelFontSize").value;
-}
-
-function buildLabelHTML(text, bg, fg, font, size){
-  return `<div class="label-box"
-            style="background:${bg}; color:${fg};
-                   font-family:${font}; font-size:${size};">
-            ${text}
-          </div>`;
-}
-
-/* ======================== COLOUR OPTIONS ======================== */
-const boxColours = [
-  { value:"#A72219", label:"Dark Red" },
-  { value:"#D43B2A", label:"Red" },
-  { value:"#E58E26", label:"Orange" },
-  { value:"#F2C94C", label:"Yellow" },
-  { value:"#F8E45C", label:"Light Yellow" },
-  { value:"#9CCC65", label:"Light Green" },
-  { value:"#43A047", label:"Green" },
-  { value:"#4FC3F7", label:"Light Blue" },
-  { value:"#2196F3", label:"Blue" },
-  { value:"#0D47A1", label:"Navy" }
-];
-
-const textColours = [
-  { value:"#000000", label:"Black" },
-  { value:"#333333", label:"Dark Grey" },
-  { value:"#ffffff", label:"White" }
-];
-
-function buildColourSelectHtml(options, defaultVal){
-  return options.map(c=>{
-    const sel = c.value === defaultVal ? " selected" : "";
-    return `<option value="${c.value}"${sel}>${c.label}</option>`;
-  }).join("");
-}
-
 /* ======================== AUTOCOMPLETE ======================== */
 const startAcMap = new Map();
 const endAcMap   = new Map();
 
 function attachAC(input, mapObj){
-  const ac = new google.maps.places.Autocomplete(input,{fields:["geometry"]});
+  const ac=new google.maps.places.Autocomplete(input,{fields:["geometry"]});
   mapObj.set(input,ac);
 }
 
@@ -534,8 +496,24 @@ function makeMarker(color){
   });
 }
 
+function presetColors(){
+  return [
+    {box:"#A72219", text:"#ffffff"},
+    {box:"#D43B2A", text:"#ffffff"},
+    {box:"#E58E26", text:"#000000"},
+    {box:"#F2C94C", text:"#000000"},
+    {box:"#F8E45C", text:"#000000"},
+    {box:"#9CCC65", text:"#000000"},
+    {box:"#43A047", text:"#ffffff"},
+    {box:"#4FC3F7", text:"#000000"},
+    {box:"#2196F3", text:"#ffffff"},
+    {box:"#0D47A1", text:"#ffffff"},
+    {box:"#6A1B9A", text:"#ffffff"}
+  ];
+}
+
 function getRouteMode(r){
-  const el = r.row.querySelector(`input[name="mode-${r.id}"]:checked`);
+  const el = r.row.querySelector('input[name="mode-' + r.id + '"]:checked');
   return el ? el.value : "DRIVE";
 }
 
@@ -543,8 +521,9 @@ function createRouteRow(){
   const row = document.createElement("div");
   row.className = "route-row";
 
-  const boxOptionsHtml = buildColourSelectHtml(boxColours, "#2e8b57");
-  const textOptionsHtml = buildColourSelectHtml(textColours, "#ffffff");
+  const presetHtml = presetColors().map(function(c){
+    return '<div class="preset-swatch" data-box="' + c.box + '" data-text="' + c.text + '" style="background:' + c.box + ';"></div>';
+  }).join("");
 
   row.innerHTML = `
     <div class="drag-handle">☰</div>
@@ -564,13 +543,12 @@ function createRouteRow(){
       <div class="color-row">
         <div class="color-controls">
           <label>Box:</label>
-          <select class="color-select boxColor">
-            ${boxOptionsHtml}
-          </select>
+          <input type="color" class="color-input boxColor" value="#2e8b57"/>
           <label>Text:</label>
-          <select class="color-select textColor">
-            ${textOptionsHtml}
-          </select>
+          <input type="color" class="color-input textColor" value="#ffffff"/>
+        </div>
+        <div class="preset-swatches">
+          ${presetHtml}
         </div>
       </div>
       <div class="bottom-row">
@@ -591,7 +569,7 @@ function createRouteRow(){
 
   const r = {
     id: nextRouteId++,
-    row,
+    row: row,
     startAddrInput:  row.querySelector(".start-addr"),
     startLabelInput: row.querySelector(".start-name"),
     endAddrInput:    row.querySelector(".end-addr"),
@@ -605,9 +583,7 @@ function createRouteRow(){
     startMarker:     null,
     endMarker:       null,
     startLabelMarker:null,
-    endLabelMarker:  null,
-    startLeader:     null,
-    endLeader:       null
+    endLabelMarker:  null
   };
 
   attachAC(r.startAddrInput, startAcMap);
@@ -618,28 +594,33 @@ function createRouteRow(){
   const pickStartBtn= row.querySelector(".pick-start");
   const pickEndBtn  = row.querySelector(".pick-end");
 
-  toggleBtn.onclick = () => toggleRoute(r, toggleBtn);
-  removeBtn.onclick = () => removeRoute(r);
+  toggleBtn.onclick = function(){ toggleRoute(r, toggleBtn); };
+  removeBtn.onclick = function(){ removeRoute(r); };
 
-  pickStartBtn.onclick = () => {
+  pickStartBtn.onclick = function(){
     pickMode = { route: r, which: "start" };
     drawModeSelect.value = "none";
     setDrawMode("none");
     alert("Click on the map to set the START point for this route.");
   };
 
-  pickEndBtn.onclick = () => {
+  pickEndBtn.onclick = function(){
     pickMode = { route: r, which: "end" };
     drawModeSelect.value = "none";
     setDrawMode("none");
     alert("Click on the map to set the END point for this route.");
   };
 
-  // Colour selects: redraw if we already have geometry
-  [r.boxInput, r.textInput].forEach(sel=>{
-    sel.addEventListener("change",()=>{
+  // Colour presets
+  const swatches = row.querySelectorAll(".preset-swatch");
+  swatches.forEach(function(s){
+    s.addEventListener("click",function(){
+      const box = s.getAttribute("data-box");
+      const text = s.getAttribute("data-text");
+      r.boxInput.value = box;
+      r.textInput.value = text;
+      const mode = getRouteMode(r);
       if(r.startLatLng || r.endLatLng || r.polyline){
-        const mode = getRouteMode(r);
         drawRoute(r,mode);
       }
     });
@@ -648,7 +629,7 @@ function createRouteRow(){
   // Autocomplete: redraw when place selected
   const startAc = startAcMap.get(r.startAddrInput);
   if(startAc){
-    startAc.addListener("place_changed",()=>{
+    startAc.addListener("place_changed",function(){
       r.startLatLng = null;
       const mode = getRouteMode(r);
       drawRoute(r,mode);
@@ -656,7 +637,7 @@ function createRouteRow(){
   }
   const endAc = endAcMap.get(r.endAddrInput);
   if(endAc){
-    endAc.addListener("place_changed",()=>{
+    endAc.addListener("place_changed",function(){
       r.endLatLng = null;
       const mode = getRouteMode(r);
       drawRoute(r,mode);
@@ -669,7 +650,7 @@ function createRouteRow(){
 
 createRouteRow();
 
-document.getElementById("addRouteBtn").onclick = () => {
+document.getElementById("addRouteBtn").onclick = function(){
   createRouteRow();
 };
 
@@ -678,15 +659,11 @@ Sortable.create(routeContainer,{handle:".drag-handle",animation:150});
 /* ======================== ROUTE ACTIONS ======================== */
 function removeRoute(r){
   if(r.polyline) { routeLayer.removeLayer(r.polyline); r.polyline=null; }
-  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
+  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(function(m){
     if(m) routeMarkerLayer.removeLayer(m);
   });
-  [r.startLeader,r.endLeader].forEach(l=>{
-    if(l) routeLeaderLayer.removeLayer(l);
-  });
   r.startMarker=r.endMarker=r.startLabelMarker=r.endLabelMarker=null;
-  r.startLeader=r.endLeader=null;
-  routes = routes.filter(x=>x!==r);
+  routes = routes.filter(function(x){ return x!==r; });
   r.row.remove();
 }
 
@@ -699,16 +676,10 @@ function toggleRoute(r, btn){
     else routeLayer.removeLayer(r.polyline);
   }
 
-  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
+  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(function(m){
     if(!m) return;
     if(r.visible) routeMarkerLayer.addLayer(m);
     else routeMarkerLayer.removeLayer(m);
-  });
-
-  [r.startLeader,r.endLeader].forEach(l=>{
-    if(!l) return;
-    if(r.visible) routeLeaderLayer.addLayer(l);
-    else routeLeaderLayer.removeLayer(l);
   });
 }
 
@@ -764,14 +735,10 @@ async function computeRoute(start,end,mode){
 /* ======================== DRAW ONE ROUTE ======================== */
 async function drawRoute(r,mode){
   if(r.polyline) { routeLayer.removeLayer(r.polyline); r.polyline=null; }
-  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(m=>{
+  [r.startMarker,r.endMarker,r.startLabelMarker,r.endLabelMarker].forEach(function(m){
     if(m) routeMarkerLayer.removeLayer(m);
   });
-  [r.startLeader,r.endLeader].forEach(l=>{
-    if(l) routeLeaderLayer.removeLayer(l);
-  });
   r.startMarker=r.endMarker=r.startLabelMarker=r.endLabelMarker=null;
-  r.startLeader=r.endLeader=null;
 
   function resolveLatLng(acMap,input,existing){
     if(existing) return existing;
@@ -786,8 +753,8 @@ async function drawRoute(r,mode){
   r.startLatLng = resolveLatLng(startAcMap, r.startAddrInput, r.startLatLng);
   r.endLatLng   = resolveLatLng(endAcMap,   r.endAddrInput,   r.endLatLng);
 
-  const font=getLabelFont();
-  const size=getLabelFontSize();
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
 
   const haveStart = !!r.startLatLng;
   const haveEnd   = !!r.endLatLng;
@@ -802,41 +769,28 @@ async function drawRoute(r,mode){
 
     const startText = r.startLabelInput.value || "Start";
     const sl = L.marker(r.startLatLng,{
-      draggable:true,
       icon:L.divIcon({
-        html:buildLabelHTML(startText, r.boxInput.value, r.textInput.value, font, size),
+        html:'<div class="label-box" style="background:' + r.boxInput.value +
+             '; color:' + r.textInput.value +
+             '; font-family:' + font + '; font-size:' + size + ';">' +
+             startText +
+             '</div>',
         className:"",
         iconSize:[0,0],
         iconAnchor:[0,-10]
-      })
+      }),
+      interactive:false
     });
     if(r.visible) sl.addTo(routeMarkerLayer);
     r.startLabelMarker = sl;
 
-    const startLeader = L.polyline(
-      [sm.getLatLng(), sl.getLatLng()],
-      { color:r.boxInput.value, weight:3 }
-    );
-    r.startLeader = startLeader;
-    if(r.visible) startLeader.addTo(routeLeaderLayer);
-
-    sm.on("drag", e=>{
-      const p = e.target.getLatLng();
-      if(r.startLeader && r.startLabelMarker){
-        r.startLeader.setLatLngs([p, r.startLabelMarker.getLatLng()]);
-      }
+    sm.on("drag", function(e){
+      sl.setLatLng(e.latlng);
     });
-    sm.on("dragend", async e=>{
+    sm.on("dragend", async function(e){
       r.startLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
       const m = getRouteMode(r);
       await drawRoute(r,m);
-    });
-
-    sl.on("drag", e=>{
-      const lp = e.target.getLatLng();
-      if(r.startLeader && r.startMarker){
-        r.startLeader.setLatLngs([r.startMarker.getLatLng(), lp]);
-      }
     });
   }
 
@@ -850,41 +804,28 @@ async function drawRoute(r,mode){
 
     const endText = r.endLabelInput.value || "End";
     const el = L.marker(r.endLatLng,{
-      draggable:true,
       icon:L.divIcon({
-        html:buildLabelHTML(endText, r.boxInput.value, r.textInput.value, font, size),
+        html:'<div class="label-box" style="background:' + r.boxInput.value +
+             '; color:' + r.textInput.value +
+             '; font-family:' + font + '; font-size:' + size + ';">' +
+             endText +
+             '</div>',
         className:"",
         iconSize:[0,0],
         iconAnchor:[0,-10]
-      })
+      }),
+      interactive:false
     });
     if(r.visible) el.addTo(routeMarkerLayer);
     r.endLabelMarker = el;
 
-    const endLeader = L.polyline(
-      [em.getLatLng(), el.getLatLng()],
-      { color:r.boxInput.value, weight:3 }
-    );
-    r.endLeader = endLeader;
-    if(r.visible) endLeader.addTo(routeLeaderLayer);
-
-    em.on("drag", e=>{
-      const p = e.target.getLatLng();
-      if(r.endLeader && r.endLabelMarker){
-        r.endLeader.setLatLngs([p, r.endLabelMarker.getLatLng()]);
-      }
+    em.on("drag", function(e){
+      el.setLatLng(e.latlng);
     });
-    em.on("dragend", async e=>{
+    em.on("dragend", async function(e){
       r.endLatLng = [e.target.getLatLng().lat, e.target.getLatLng().lng];
       const m = getRouteMode(r);
       await drawRoute(r,m);
-    });
-
-    el.on("drag", e=>{
-      const lp = e.target.getLatLng();
-      if(r.endLeader && r.endMarker){
-        r.endLeader.setLatLngs([r.endMarker.getLatLng(), lp]);
-      }
     });
   }
 
@@ -893,7 +834,7 @@ async function drawRoute(r,mode){
   const coords = await computeRoute(r.startLatLng,r.endLatLng,mode);
   if(!coords.length) return;
 
-  const latlngs = coords.map(p=>[p[0],p[1]]);
+  const latlngs = coords.map(function(p){ return [p[0],p[1]]; });
   const dash = mode==="WALK" ? "6,10" : null;
   const poly = L.polyline(latlngs,{
     color:r.boxInput.value,
@@ -905,14 +846,14 @@ async function drawRoute(r,mode){
 }
 
 /* ======================== DRAW ALL ROUTES ======================== */
-document.getElementById("drawAllBtn").onclick = async ()=>{
+document.getElementById("drawAllBtn").onclick = async function(){
   for(const r of routes){
     const mode = getRouteMode(r);
     await drawRoute(r,mode);
   }
 
   let b=null;
-  routeLayer.eachLayer(l=>{
+  routeLayer.eachLayer(function(l){
     if(!b) b=l.getBounds(); else b.extend(l.getBounds());
   });
   if(b) map.fitBounds(b,{padding:[40,40]});
@@ -922,6 +863,7 @@ document.getElementById("drawAllBtn").onclick = async ()=>{
 let drawnRoutes = [];
 let nextDrawnRouteId = 1;
 const drawnRouteContainer = document.getElementById("drawnRouteContainer");
+const droppedPinContainer = document.getElementById("droppedPinContainer");
 
 const drawModeSelect = document.getElementById("drawModeSelect");
 const cancelDrawBtn  = document.getElementById("cancelDrawBtn");
@@ -954,12 +896,12 @@ function setDrawMode(mode){
   }
 }
 
-drawModeSelect.addEventListener("change",()=>{
+drawModeSelect.addEventListener("change",function(){
   pickMode = null;
   setDrawMode(drawModeSelect.value);
 });
 
-cancelDrawBtn.addEventListener("click",()=>{
+cancelDrawBtn.addEventListener("click",function(){
   if(isDrawing){
     isDrawing = false;
     if(tempDrawLine){
@@ -971,7 +913,7 @@ cancelDrawBtn.addEventListener("click",()=>{
   }
 });
 
-document.addEventListener("keydown",e=>{
+document.addEventListener("keydown",function(e){
   if(e.key==="Escape" && isDrawing){
     isDrawing = false;
     if(tempDrawLine){
@@ -982,6 +924,15 @@ document.addEventListener("keydown",e=>{
     cancelDrawBtn.disabled = true;
   }
 });
+
+function buildLabelHTML(text, bg, fg, font, size){
+  return '<div class="label-box" style="background:' + bg +
+         '; color:' + fg +
+         '; font-family:' + font +
+         '; font-size:' + size + ';">' +
+         text +
+         '</div>';
+}
 
 function updateDrawnRouteGraphics(dr){
   if(!dr.polyline) return;
@@ -995,8 +946,8 @@ function updateDrawnRouteGraphics(dr){
     dashArray: dash
   });
 
-  const font=getLabelFont();
-  const size=getLabelFontSize();
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
 
   const startText = dr.startLabelInput.value || "Start";
   const endText   = dr.endLabelInput.value   || "End";
@@ -1024,18 +975,10 @@ function updateDrawnRouteGraphics(dr){
   if(dr.endMarker){
     dr.endMarker.setIcon(makeMarker(dr.boxInput.value));
   }
-
-  // leader lines colour
-  if(dr.startLeader){
-    dr.startLeader.setStyle({color:dr.boxInput.value,weight:3});
-  }
-  if(dr.endLeader){
-    dr.endLeader.setStyle({color:dr.boxInput.value,weight:3});
-  }
 }
 
 function attachDrawnRouteEvents(dr, toggleBtn, removeBtn){
-  toggleBtn.onclick = () => {
+  toggleBtn.onclick = function(){
     dr.visible = !dr.visible;
     toggleBtn.textContent = dr.visible ? "🙈 Hide" : "👁 Show";
 
@@ -1043,32 +986,24 @@ function attachDrawnRouteEvents(dr, toggleBtn, removeBtn){
       if(dr.visible) drawnRouteLayer.addLayer(dr.polyline);
       else drawnRouteLayer.removeLayer(dr.polyline);
     }
-    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(m=>{
+    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(function(m){
       if(!m) return;
       if(dr.visible) drawnMarkerLayer.addLayer(m);
       else drawnMarkerLayer.removeLayer(m);
     });
-    [dr.startLeader,dr.endLeader].forEach(l=>{
-      if(!l) return;
-      if(dr.visible) drawnLeaderLayer.addLayer(l);
-      else drawnLeaderLayer.removeLayer(l);
-    });
-    dr.handleMarkers.forEach(h=>{
+    dr.handleMarkers.forEach(function(h){
       if(dr.visible) drawnMarkerLayer.addLayer(h);
       else drawnMarkerLayer.removeLayer(h);
     });
   };
 
-  removeBtn.onclick = () => {
+  removeBtn.onclick = function(){
     if(dr.polyline) { drawnRouteLayer.removeLayer(dr.polyline); dr.polyline=null; }
-    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(m=>{
+    [dr.startMarker,dr.endMarker,dr.startLabelMarker,dr.endLabelMarker].forEach(function(m){
       if(m) drawnMarkerLayer.removeLayer(m);
     });
-    [dr.startLeader,dr.endLeader].forEach(l=>{
-      if(l) drawnLeaderLayer.removeLayer(l);
-    });
-    dr.handleMarkers.forEach(h=>drawnMarkerLayer.removeLayer(h));
-    drawnRoutes = drawnRoutes.filter(x=>x!==dr);
+    dr.handleMarkers.forEach(function(h){ drawnMarkerLayer.removeLayer(h); });
+    drawnRoutes = drawnRoutes.filter(function(x){ return x!==dr; });
     dr.row.remove();
   };
 }
@@ -1077,8 +1012,9 @@ function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
   const row = document.createElement("div");
   row.className = "drawn-route-row";
 
-  const boxOptionsHtml = buildColourSelectHtml(boxColours, boxColor || "#2e8b57");
-  const textOptionsHtml = buildColourSelectHtml(textColours, textColor || "#ffffff");
+  const presetHtml = presetColors().map(function(c){
+    return '<div class="preset-swatch" data-box="' + c.box + '" data-text="' + c.text + '" style="background:' + c.box + ';"></div>';
+  }).join("");
 
   row.innerHTML = `
     <div class="drag-handle">☰</div>
@@ -1098,19 +1034,18 @@ function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
       <div class="color-row">
         <div class="color-controls">
           <label>Box:</label>
-          <select class="color-select drawnBoxColor">
-            ${boxOptionsHtml}
-          </select>
+          <input type="color" class="color-input drawnBoxColor" value="#2e8b57"/>
           <label>Text:</label>
-          <select class="color-select drawnTextColor">
-            ${textOptionsHtml}
-          </select>
+          <input type="color" class="color-input drawnTextColor" value="#ffffff"/>
           <label>Style:</label>
           <select class="drawnStyleSelect">
-            <option value="solid"${style==="solid"?" selected":""}>Solid</option>
-            <option value="dashed"${style==="dashed"?" selected":""}>Dashed</option>
-            <option value="dotted"${style==="dotted"?" selected":""}>Dotted</option>
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
           </select>
+        </div>
+        <div class="preset-swatches">
+          ${presetHtml}
         </div>
       </div>
       <div class="buttons-row">
@@ -1130,8 +1065,11 @@ function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
 
   startLabelInput.value = startLabel || "Start";
   endLabelInput.value   = endLabel   || "End";
+  boxInput.value        = boxColor   || "#2e8b57";
+  textInput.value       = textColor  || "#ffffff";
+  styleSelect.value     = style      || "solid";
 
-  return { row, startLabelInput, endLabelInput, boxInput, textInput, styleSelect };
+  return { row: row, startLabelInput: startLabelInput, endLabelInput: endLabelInput, boxInput: boxInput, textInput: textInput, styleSelect: styleSelect };
 }
 
 function createDrawnRoute(latlngs){
@@ -1158,13 +1096,11 @@ function createDrawnRoute(latlngs){
     endMarker:       null,
     startLabelMarker:null,
     endLabelMarker:  null,
-    startLeader:     null,
-    endLeader:       null,
     handleMarkers:   []
   };
 
-  const font=getLabelFont();
-  const size=getLabelFontSize();
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
 
   const poly = L.polyline(dr.latlngs,{
     color:dr.boxInput.value,
@@ -1177,87 +1113,40 @@ function createDrawnRoute(latlngs){
   const endLatLng   = dr.latlngs[dr.latlngs.length-1];
 
   const startMarker = L.marker(startLatLng,{
-    draggable:true,
     icon: makeMarker(dr.boxInput.value)
   }).addTo(drawnMarkerLayer);
 
   const endMarker = L.marker(endLatLng,{
-    draggable:true,
     icon: makeMarker(dr.boxInput.value)
   }).addTo(drawnMarkerLayer);
 
   const startLabelMarker = L.marker(startLatLng,{
-    draggable:true,
     icon:L.divIcon({
       html: buildLabelHTML(dr.startLabelInput.value || "Start", dr.boxInput.value, dr.textInput.value, font, size),
       className:"",
       iconSize:[0,0],
       iconAnchor:[0,-10]
-    })
+    }),
+    interactive:false
   }).addTo(drawnMarkerLayer);
 
   const endLabelMarker = L.marker(endLatLng,{
-    draggable:true,
     icon:L.divIcon({
       html: buildLabelHTML(dr.endLabelInput.value || "End", dr.boxInput.value, dr.textInput.value, font, size),
       className:"",
       iconSize:[0,0],
       iconAnchor:[0,-10]
-    })
+    }),
+    interactive:false
   }).addTo(drawnMarkerLayer);
-
-  const startLeader = L.polyline(
-    [startMarker.getLatLng(), startLabelMarker.getLatLng()],
-    { color:dr.boxInput.value, weight:3 }
-  ).addTo(drawnLeaderLayer);
-
-  const endLeader = L.polyline(
-    [endMarker.getLatLng(), endLabelMarker.getLatLng()],
-    { color:dr.boxInput.value, weight:3 }
-  ).addTo(drawnLeaderLayer);
 
   dr.startMarker      = startMarker;
   dr.endMarker        = endMarker;
   dr.startLabelMarker = startLabelMarker;
   dr.endLabelMarker   = endLabelMarker;
-  dr.startLeader      = startLeader;
-  dr.endLeader        = endLeader;
-
-  // endpoint marker drags
-  startMarker.on("drag", e=>{
-    const ll = e.target.getLatLng();
-    dr.latlngs[0] = ll;
-    dr.polyline.setLatLngs(dr.latlngs);
-    if(dr.startLeader){
-      dr.startLeader.setLatLngs([ll, dr.startLabelMarker.getLatLng()]);
-    }
-  });
-
-  endMarker.on("drag", e=>{
-    const ll = e.target.getLatLng();
-    dr.latlngs[dr.latlngs.length-1] = ll;
-    dr.polyline.setLatLngs(dr.latlngs);
-    if(dr.endLeader){
-      dr.endLeader.setLatLngs([ll, dr.endLabelMarker.getLatLng()]);
-    }
-  });
-
-  // label drags
-  startLabelMarker.on("drag", e=>{
-    const ll = e.target.getLatLng();
-    if(dr.startLeader && dr.startMarker){
-      dr.startLeader.setLatLngs([dr.startMarker.getLatLng(), ll]);
-    }
-  });
-  endLabelMarker.on("drag", e=>{
-    const ll = e.target.getLatLng();
-    if(dr.endLeader && dr.endMarker){
-      dr.endLeader.setLatLngs([dr.endMarker.getLatLng(), ll]);
-    }
-  });
 
   // Vertex handles as draggable markers
-  dr.latlngs.forEach((pt, idx)=>{
+  dr.latlngs.forEach(function(pt, idx){
     const h = L.marker(pt,{
       draggable:true,
       icon:L.divIcon({
@@ -1268,23 +1157,17 @@ function createDrawnRoute(latlngs){
       })
     }).addTo(drawnMarkerLayer);
 
-    h.on("drag", e=>{
+    h.on("drag", function(e){
       const ll = e.target.getLatLng();
       dr.latlngs[idx] = ll;
       dr.polyline.setLatLngs(dr.latlngs);
       if(idx===0){
         dr.startMarker.setLatLng(ll);
         dr.startLabelMarker.setLatLng(ll);
-        if(dr.startLeader){
-          dr.startLeader.setLatLngs([ll, dr.startLabelMarker.getLatLng()]);
-        }
       }
       if(idx===dr.latlngs.length-1){
         dr.endMarker.setLatLng(ll);
         dr.endLabelMarker.setLatLng(ll);
-        if(dr.endLeader){
-          dr.endLeader.setLatLngs([ll, dr.endLabelMarker.getLatLng()]);
-        }
       }
     });
 
@@ -1295,84 +1178,101 @@ function createDrawnRoute(latlngs){
   const removeBtn = dr.row.querySelector(".removeDrawnRoute");
   attachDrawnRouteEvents(dr, toggleBtn, removeBtn);
 
-  dr.boxInput.addEventListener("change",()=>updateDrawnRouteGraphics(dr));
-  dr.textInput.addEventListener("change",()=>updateDrawnRouteGraphics(dr));
-  dr.styleSelect.addEventListener("change",()=>updateDrawnRouteGraphics(dr));
-  dr.startLabelInput.addEventListener("input",()=>updateDrawnRouteGraphics(dr));
-  dr.endLabelInput.addEventListener("input",()=>updateDrawnRouteGraphics(dr));
+  dr.boxInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+  dr.textInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+  dr.styleSelect.addEventListener("change",function(){ updateDrawnRouteGraphics(dr); });
+  dr.startLabelInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+  dr.endLabelInput.addEventListener("input",function(){ updateDrawnRouteGraphics(dr); });
+
+  const swatches = dr.row.querySelectorAll(".preset-swatch");
+  swatches.forEach(function(s){
+    s.addEventListener("click",function(){
+      dr.boxInput.value = s.getAttribute("data-box");
+      dr.textInput.value = s.getAttribute("data-text");
+      updateDrawnRouteGraphics(dr);
+    });
+  });
 
   drawnRoutes.push(dr);
   return dr;
 }
 
 Sortable.create(drawnRouteContainer,{handle:".drag-handle",animation:150});
+Sortable.create(droppedPinContainer,{handle:".drag-handle",animation:150});
 
 /* ======================== DRAWING & FREE MARKERS ======================== */
 let dropMode=false;
 let pickMode=null;
 
-const freeMarkerContainer = document.getElementById("freeMarkerContainer");
+document.getElementById("addFreeMarkerBtn").onclick=function(){
+  dropMode=true;
+  drawModeSelect.value="none";
+  setDrawMode("none");
+  alert("Click the map to place a custom marker.");
+};
+
 let freeMarkerId=1;
 const freeMarkers=[];
 
-function createFreeMarkerRow(fm){
+function addDroppedPinRow(fm){
   const row = document.createElement("div");
-  row.className = "free-marker-row";
+  row.className = "drawn-route-row";
 
-  row.innerHTML = `
-    <div class="drag-handle">☰</div>
-    <div class="free-marker-main">
-      <div class="point-row">
-        <div class="point-label">Label:</div>
-        <div></div>
-        <div></div>
-        <input class="name-input free-label-input" placeholder="Marker label" />
-      </div>
-      <div class="buttons-row">
-        <button class="toggleFreeMarker">🙈 Hide</button>
-        <button class="removeFreeMarker">✖ Delete</button>
-      </div>
-    </div>
-  `;
+  row.innerHTML =
+    '<div class="drag-handle">☰</div>' +
+    '<div class="drawn-route-main">' +
+      '<div class="point-row">' +
+        '<div class="point-label">Pin:</div>' +
+        '<div></div>' +
+        '<div></div>' +
+        '<input class="name-input drop-label" placeholder="Pin label" />' +
+      '</div>' +
+      '<div class="buttons-row">' +
+        '<button class="toggleDropPin">🙈 Hide</button>' +
+        '<button class="removeDropPin">✖ Delete</button>' +
+      '</div>' +
+    '</div>';
 
-  freeMarkerContainer.appendChild(row);
+  droppedPinContainer.appendChild(row);
 
-  const labelInput = row.querySelector(".free-label-input");
-  const toggleBtn  = row.querySelector(".toggleFreeMarker");
-  const removeBtn  = row.querySelector(".removeFreeMarker");
+  const labelInput = row.querySelector(".drop-label");
+  const toggleBtn  = row.querySelector(".toggleDropPin");
+  const removeBtn  = row.querySelector(".removeDropPin");
 
-  labelInput.value = fm.text || "Point";
+  labelInput.value = fm.text;
 
-  labelInput.addEventListener("input",()=>{
+  labelInput.addEventListener("input", function(){
     fm.text = labelInput.value || "Point";
-    const font=getLabelFont();
-    const size=getLabelFontSize();
+    const font = document.getElementById("labelFont").value;
+    const size = document.getElementById("labelFontSize").value;
     fm.labelMarker.setIcon(L.divIcon({
-      html: buildLabelHTML(fm.text, fm.boxColor, fm.textColor, font, size),
+      html:'<div class="label-box" style="background:' + fm.boxColor +
+           '; color:' + fm.textColor +
+           '; font-family:' + font +
+           '; font-size:' + size + ';">' +
+           fm.text +
+           '</div>',
       className:"",
       iconSize:[0,0],
       iconAnchor:[0,-10]
     }));
   });
 
-  toggleBtn.onclick = ()=>{
+  toggleBtn.onclick = function(){
     fm.visible = !fm.visible;
     toggleBtn.textContent = fm.visible ? "🙈 Hide" : "👁 Show";
     if(fm.visible){
       freeMarkerLayer.addLayer(fm.marker);
       freeMarkerLayer.addLayer(fm.labelMarker);
-      if(fm.leader) freeLeaderLayer.addLayer(fm.leader);
     } else {
       freeMarkerLayer.removeLayer(fm.marker);
       freeMarkerLayer.removeLayer(fm.labelMarker);
-      if(fm.leader) freeLeaderLayer.removeLayer(fm.leader);
     }
   };
 
-  removeBtn.onclick = ()=>{
+  removeBtn.onclick = function(){
     freeMarkerLayer.removeLayer(fm.marker);
     freeMarkerLayer.removeLayer(fm.labelMarker);
-    if(fm.leader) freeLeaderLayer.removeLayer(fm.leader);
     const idx = freeMarkers.indexOf(fm);
     if(idx>=0) freeMarkers.splice(idx,1);
     row.remove();
@@ -1380,22 +1280,11 @@ function createFreeMarkerRow(fm){
 
   fm.row = row;
   fm.labelInput = labelInput;
-  fm.toggleBtn = toggleBtn;
-  fm.removeBtn = removeBtn;
 }
 
-Sortable.create(freeMarkerContainer,{handle:".drag-handle",animation:150});
-
-document.getElementById("addFreeMarkerBtn").onclick=()=>{
-  dropMode=true;
-  drawModeSelect.value="none";
-  setDrawMode("none");
-  alert("Click the map to place a custom marker.");
-};
-
 function createFreeMarker(latlng,text,boxColor,textColor){
-  const font=getLabelFont();
-  const size=getLabelFontSize();
+  const font=document.getElementById("labelFont").value;
+  const size=document.getElementById("labelFontSize").value;
 
   const id=freeMarkerId++;
 
@@ -1405,106 +1294,89 @@ function createFreeMarker(latlng,text,boxColor,textColor){
   }).addTo(freeMarkerLayer);
 
   const labelMarker=L.marker(latlng,{
-    draggable:true,
     icon:L.divIcon({
-      html: buildLabelHTML(text, boxColor, textColor, font, size),
+      html:'<div class="label-box" style="background:' + boxColor +
+           '; color:' + textColor +
+           '; font-family:' + font +
+           '; font-size:' + size + ';">' +
+           text +
+           '</div>',
       className:"",
       iconSize:[0,0],
       iconAnchor:[0,-10]
-    })
+    }),
+    interactive:false
   }).addTo(freeMarkerLayer);
 
-  const leader = L.polyline(
-    [marker.getLatLng(), labelMarker.getLatLng()],
-    { color:boxColor, weight:3 }
-  ).addTo(freeLeaderLayer);
-
   const fm = {
-    id,
-    marker,
-    labelMarker,
-    leader,
-    text,
-    boxColor,
-    textColor,
-    visible:true
+    id: id,
+    marker: marker,
+    labelMarker: labelMarker,
+    text: text,
+    boxColor: boxColor,
+    textColor: textColor,
+    visible: true,
+    row: null,
+    labelInput: null
   };
   freeMarkers.push(fm);
 
-  // marker drag -> update line
-  marker.on("drag",e=>{
-    const p = e.target.getLatLng();
-    if(fm.leader && fm.labelMarker){
-      fm.leader.setLatLngs([p, fm.labelMarker.getLatLng()]);
-    }
-  });
+  marker.on("drag",function(e){ labelMarker.setLatLng(e.latlng); });
+  marker.on("click",function(){ openFreeMarkerEditor(fm); });
 
-  // label drag -> update line
-  labelMarker.on("drag",e=>{
-    const lp = e.target.getLatLng();
-    if(fm.leader && fm.marker){
-      fm.leader.setLatLngs([fm.marker.getLatLng(), lp]);
-    }
-  });
-
-  createFreeMarkerRow(fm);
-  return fm;
+  addDroppedPinRow(fm);
 }
 
 function openFreeMarkerEditor(fm){
-  const html=`
-   <div class="marker-editor">
-     <h4>Edit Marker</h4>
-
-     <label>Label:</label>
-     <input id="fm-label-${fm.id}" value="${fm.text}" />
-
-     <label>Box:
-       <input type="color" id="fm-box-${fm.id}" value="${fm.boxColor}">
-     </label>
-
-     <label>Text:
-       <input type="color" id="fm-text-${fm.id}" value="${fm.textColor}">
-     </label>
-
-     <div class="marker-editor-buttons">
-       <button class="marker-editor-save" id="fm-save-${fm.id}">Save</button>
-       <button class="marker-editor-delete" id="fm-del-${fm.id}">Delete</button>
-     </div>
-   </div>
-  `;
+  const html =
+   '<div class="marker-editor">' +
+     '<h4>Edit Marker</h4>' +
+     '<label>Label:</label>' +
+     '<input id="fm-label-' + fm.id + '" value="' + fm.text + '" />' +
+     '<label>Box:' +
+       '<input type="color" id="fm-box-' + fm.id + '" value="' + fm.boxColor + '">' +
+     '</label>' +
+     '<label>Text:' +
+       '<input type="color" id="fm-text-' + fm.id + '" value="' + fm.textColor + '">' +
+     '</label>' +
+     '<div class="marker-editor-buttons">' +
+       '<button class="marker-editor-save" id="fm-save-' + fm.id + '">Save</button>' +
+       '<button class="marker-editor-delete" id="fm-del-' + fm.id + '">Delete</button>' +
+     '</div>' +
+   '</div>';
 
   L.popup()
     .setLatLng(fm.marker.getLatLng())
     .setContent(html)
     .openOn(map);
 
-  setTimeout(()=>{
-    const labelIn=document.getElementById(`fm-label-${fm.id}`);
-    const boxIn=document.getElementById(`fm-box-${fm.id}`);
-    const textIn=document.getElementById(`fm-text-${fm.id}`);
+  setTimeout(function(){
+    const labelIn=document.getElementById('fm-label-' + fm.id);
+    const boxIn=document.getElementById('fm-box-' + fm.id);
+    const textIn=document.getElementById('fm-text-' + fm.id);
 
-    document.getElementById(`fm-save-${fm.id}`).onclick=()=>{
+    document.getElementById('fm-save-' + fm.id).onclick=function(){
       fm.text=labelIn.value||"Point";
       fm.boxColor=boxIn.value;
       fm.textColor=textIn.value;
 
-      const font=getLabelFont();
-      const size=getLabelFontSize();
+      const font=document.getElementById("labelFont").value;
+      const size=document.getElementById("labelFontSize").value;
 
       fm.labelMarker.setIcon(L.divIcon({
-        html: buildLabelHTML(fm.text, fm.boxColor, fm.textColor, font, size),
+        html:'<div class="label-box" style="background:' + fm.boxColor +
+             '; color:' + fm.textColor +
+             '; font-family:' + font +
+             '; font-size:' + size + ';">' +
+             fm.text +
+             '</div>',
         className:"",
         iconSize:[0,0],
         iconAnchor:[0,-10]
       }));
 
       fm.marker.setIcon(makeMarker(fm.boxColor));
-      if(fm.leader){
-        fm.leader.setStyle({color:fm.boxColor,weight:3});
-      }
 
-      // sync sidebar label and keep visibility text
       if(fm.labelInput){
         fm.labelInput.value = fm.text;
       }
@@ -1512,13 +1384,14 @@ function openFreeMarkerEditor(fm){
       map.closePopup();
     };
 
-    document.getElementById(`fm-del-${fm.id}`).onclick=()=>{
+    document.getElementById('fm-del-' + fm.id).onclick=function(){
       freeMarkerLayer.removeLayer(fm.marker);
       freeMarkerLayer.removeLayer(fm.labelMarker);
-      if(fm.leader) freeLeaderLayer.removeLayer(fm.leader);
-      const idx=freeMarkers.findIndex(x=>x.id===fm.id);
+      const idx=freeMarkers.indexOf(fm);
       if(idx>=0) freeMarkers.splice(idx,1);
-      if(fm.row) fm.row.remove();
+      if(fm.row){
+        fm.row.remove();
+      }
       map.closePopup();
     };
 
@@ -1526,7 +1399,7 @@ function openFreeMarkerEditor(fm){
 }
 
 /* Freehand drawing */
-map.on("mousedown", e=>{
+map.on("mousedown", function(e){
   if(drawMode==="freehand"){
     isDrawing = true;
     tempDrawPoints = [e.latlng];
@@ -1536,14 +1409,14 @@ map.on("mousedown", e=>{
   }
 });
 
-map.on("mousemove", e=>{
+map.on("mousemove", function(e){
   if(drawMode==="freehand" && isDrawing && tempDrawLine){
     tempDrawPoints.push(e.latlng);
     tempDrawLine.setLatLngs(tempDrawPoints);
   }
 });
 
-map.on("mouseup", e=>{
+map.on("mouseup", function(e){
   if(drawMode==="freehand" && isDrawing){
     map.dragging.enable();
     isDrawing = false;
@@ -1567,8 +1440,8 @@ map.on("mouseup", e=>{
   }
 });
 
-/* Point-by-point drawing and pin placement */
-map.on("click", e=>{
+/* Point-by-point drawing */
+map.on("click", function(e){
   if(drawMode==="points"){
     if(!isDrawing){
       isDrawing = true;
@@ -1612,7 +1485,7 @@ map.on("click", e=>{
   }
 });
 
-map.on("dblclick", e=>{
+map.on("dblclick", function(e){
   if(drawMode==="points" && isDrawing){
     L.DomEvent.stop(e);
     isDrawing = false;
@@ -1636,10 +1509,7 @@ map.on("dblclick", e=>{
   }
 });
 
-/* Free marker click -> open editor */
-freeMarkerLayer.on("click", e=>{
-  // this will be handled per-marker; left here in case we want global
-});
+/* ======================== SATELLITE TOGGLE END ======================== */
 </script>
 
 </body>
