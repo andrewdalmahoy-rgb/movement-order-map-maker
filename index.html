@@ -480,12 +480,12 @@ let nextRouteId = 1;
 const routeContainer = document.getElementById("routeContainer");
 
 function makeMarker(color){
-  const svg = `
-    <svg width="32" height="48" viewBox="0 0 32 48" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16 0 C7 0 0 7 0 16 C0 30 16 48 16 48 C16 48 32 30 32 16 C32 7 25 0 16 0Z"
-            fill="${color}" stroke="white" stroke-width="2"/>
-      <circle cx="16" cy="16" r="6" fill="white"/>
-    </svg>`;
+  var svg =
+    '<svg width="32" height="48" viewBox="0 0 32 48" xmlns="http://www.w3.org/2000/svg">' +
+      '<path d="M16 0 C7 0 0 7 0 16 C0 30 16 48 16 48 C16 48 32 30 32 16 C32 7 25 0 16 0Z"' +
+            ' fill="' + color + '" stroke="white" stroke-width="2"/>' +
+      '<circle cx="16" cy="16" r="6" fill="white"/>' +
+    '</svg>';
   return L.icon({
     iconUrl:"data:image/svg+xml;base64,"+btoa(svg),
     iconSize:[32,48],
@@ -522,45 +522,44 @@ function createRouteRow(){
     return '<div class="preset-swatch" data-box="' + c.box + '" data-text="' + c.text + '" style="background:' + c.box + ';"></div>';
   }).join("");
 
-  row.innerHTML = `
-    <div class="drag-handle">☰</div>
-    <div class="route-main">
-      <div class="point-row">
-        <div class="point-label">Start:</div>
-        <input class="addr-input start-addr" placeholder="Start address or postcode" />
-        <button type="button" class="pick-btn pick-start" title="Pick start from map">📍</button>
-        <input class="name-input start-name" placeholder="Start label" />
-      </div>
-      <div class="point-row">
-        <div class="point-label">End:</div>
-        <input class="addr-input end-addr" placeholder="End address or postcode" />
-        <button type="button" class="pick-btn pick-end" title="Pick end from map">📍</button>
-        <input class="name-input end-name" placeholder="End label" />
-      </div>
-      <div class="color-row">
-        <div class="color-controls">
-          <label>Box:</label>
-          <input type="color" class="color-input boxColor" value="#2e8b57"/>
-          <label>Text:</label>
-          <input type="color" class="color-input textColor" value="#ffffff"/>
-        </div>
-        <div class="preset-swatches">
-          ${presetHtml}
-        </div>
-      </div>
-      <div class="bottom-row">
-        <div class="mode-row">
-          Mode:
-          <label><input type="radio" name="mode-${nextRouteId}" value="DRIVE" checked> Drive</label>
-          <label><input type="radio" name="mode-${nextRouteId}" value="WALK"> Walk</label>
-        </div>
-        <div class="buttons-row">
-          <button class="toggleRoute">🙈 Hide</button>
-          <button class="removeRoute">✖ Delete</button>
-        </div>
-      </div>
-    </div>
-  `;
+  row.innerHTML =
+    '<div class="drag-handle">☰</div>' +
+    '<div class="route-main">' +
+      '<div class="point-row">' +
+        '<div class="point-label">Start:</div>' +
+        '<input class="addr-input start-addr" placeholder="Start address or postcode" />' +
+        '<button type="button" class="pick-btn pick-start" title="Pick start from map">📍</button>' +
+        '<input class="name-input start-name" placeholder="Start label" />' +
+      '</div>' +
+      '<div class="point-row">' +
+        '<div class="point-label">End:</div>' +
+        '<input class="addr-input end-addr" placeholder="End address or postcode" />' +
+        '<button type="button" class="pick-btn pick-end" title="Pick end from map">📍</button>' +
+        '<input class="name-input end-name" placeholder="End label" />' +
+      '</div>' +
+      '<div class="color-row">' +
+        '<div class="color-controls">' +
+          '<label>Box:</label>' +
+          '<input type="color" class="color-input boxColor" value="#2e8b57"/>' +
+          '<label>Text:</label>' +
+          '<input type="color" class="color-input textColor" value="#ffffff"/>' +
+        '</div>' +
+        '<div class="preset-swatches">' +
+          presetHtml +
+        '</div>' +
+      '</div>' +
+      '<div class="bottom-row">' +
+        '<div class="mode-row">' +
+          'Mode:' +
+          '<label><input type="radio" name="mode-' + nextRouteId + '" value="DRIVE" checked> Drive</label>' +
+          '<label><input type="radio" name="mode-' + nextRouteId + '" value="WALK"> Walk</label>' +
+        '</div>' +
+        '<div class="buttons-row">' +
+          '<button class="toggleRoute">🙈 Hide</button>' +
+          '<button class="removeRoute">✖ Delete</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
 
   routeContainer.appendChild(row);
 
@@ -711,7 +710,7 @@ function decodePolyline(encoded){
 async function computeRoute(start,end,mode){
   const body={
     origin:{location:{latLng:{latitude:start[0],longitude:start[1]}}},
-    destination:{location:{latLng:{latitude=end[0],longitude:end[1]}}},
+    destination:{location:{latLng:{latitude=end[0],longitude=end[1]}}},
     travelMode:mode
   };
   const res=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
@@ -1012,44 +1011,43 @@ function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
     return '<div class="preset-swatch" data-box="' + c.box + '" data-text="' + c.text + '" style="background:' + c.box + ';"></div>';
   }).join("");
 
-  row.innerHTML = `
-    <div class="drag-handle">☰</div>
-    <div class="drawn-route-main">
-      <div class="point-row">
-        <div class="point-label">Start:</div>
-        <div></div>
-        <div></div>
-        <input class="name-input drawn-start-label" placeholder="Start label" />
-      </div>
-      <div class="point-row">
-        <div class="point-label">End:</div>
-        <div></div>
-        <div></div>
-        <input class="name-input drawn-end-label" placeholder="End label" />
-      </div>
-      <div class="color-row">
-        <div class="color-controls">
-          <label>Box:</label>
-          <input type="color" class="color-input drawnBoxColor" value="#2e8b57"/>
-          <label>Text:</label>
-          <input type="color" class="color-input drawnTextColor" value="#ffffff"/>
-          <label>Style:</label>
-          <select class="drawnStyleSelect">
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
-          </select>
-        </div>
-        <div class="preset-swatches">
-          ${presetHtml}
-        </div>
-      </div>
-      <div class="buttons-row">
-        <button class="toggleDrawnRoute">🙈 Hide</button>
-        <button class="removeDrawnRoute">✖ Delete</button>
-      </div>
-    </div>
-  `;
+  row.innerHTML =
+    '<div class="drag-handle">☰</div>' +
+    '<div class="drawn-route-main">' +
+      '<div class="point-row">' +
+        '<div class="point-label">Start:</div>' +
+        '<div></div>' +
+        '<div></div>' +
+        '<input class="name-input drawn-start-label" placeholder="Start label" />' +
+      '</div>' +
+      '<div class="point-row">' +
+        '<div class="point-label">End:</div>' +
+        '<div></div>' +
+        '<div></div>' +
+        '<input class="name-input drawn-end-label" placeholder="End label" />' +
+      '</div>' +
+      '<div class="color-row">' +
+        '<div class="color-controls">' +
+          '<label>Box:</label>' +
+          '<input type="color" class="color-input drawnBoxColor" value="#2e8b57"/>' +
+          '<label>Text:</label>' +
+          '<input type="color" class="color-input drawnTextColor" value="#ffffff"/>' +
+          '<label>Style:</label>' +
+          '<select class="drawnStyleSelect">' +
+            '<option value="solid">Solid</option>' +
+            '<option value="dashed">Dashed</option>' +
+            '<option value="dotted">Dotted</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="preset-swatches">' +
+          presetHtml +
+        '</div>' +
+      '</div>' +
+      '<div class="buttons-row">' +
+        '<button class="toggleDrawnRoute">🙈 Hide</button>' +
+        '<button class="removeDrawnRoute">✖ Delete</button>' +
+      '</div>' +
+    '</div>';
 
   drawnRouteContainer.appendChild(row);
 
@@ -1065,14 +1063,7 @@ function createDrawnRouteRow(startLabel, endLabel, boxColor, textColor, style){
   textInput.value       = textColor  || "#ffffff";
   styleSelect.value     = style      || "solid";
 
-  return {
-    row: row,
-    startLabelInput: startLabelInput,
-    endLabelInput: endLabelInput,
-    boxInput: boxInput,
-    textInput: textInput,
-    styleSelect: styleSelect
-  };
+  return { row: row, startLabelInput: startLabelInput, endLabelInput: endLabelInput, boxInput: boxInput, textInput: textInput, styleSelect: styleSelect };
 }
 
 function createDrawnRoute(latlngs){
