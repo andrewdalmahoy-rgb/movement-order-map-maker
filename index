@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Movement Order Map Maker</title>
+
+  <!-- Leaflet CSS & JS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+    integrity="sha512-sA+e2atf8GqM7AEvtTDHkJNNZBwbNG0Ax7AnCM1j403rwhhtjfiPgk41IrTnfjpJ1rssZCvobqtEtFPoq0P5xg=="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    integrity="sha512-nMMxNfD09vjP0QZV3YcBOSJyYwcmBHQYaWV7k/akdUSHcauDquynjUTduVdJN9WewtG/XAIN5SK8wP/dkG80qw=="
+    crossorigin=""
+  ></script>
+
+  <!-- SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+  <style>
+    html, body {
+      margin:0;
+      padding:0;
+      height:100%;
+      overflow:hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    header {
+      background:#0b6fa6;
+      color:white;
+      padding:10px 16px;
+      font-size:20px;
+      font-weight:600;
+    }
+
+    .layout {
+      position:absolute;
+      top:48px; left:0; right:0; bottom:0;
+    }
+
+    #map {
+      position:absolute;
+      top:0; left:0; right:0; bottom:0;
+      z-index:1;
+    }
+
+    /* leaflet controls */
+    .leaflet-control-container {
+      z-index:500;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      position:absolute;
+      top:0; bottom:0; left:0;
+      width:450px;
+      background:#f4f5f7;
+      box-shadow:2px 0 8px rgba(0,0,0,0.2);
+      padding:12px;
+      overflow-y:auto;
+      z-index:900;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar.hidden {
+      transform: translateX(-100%);
+    }
+
+    /* Route blocks */
+    .route-row,
+    .drawn-route-row {
+      display:grid;
+      grid-template-columns: 28px 1fr;
+      grid-template-areas:
+        "handle main";
+      gap:6px 10px;
+      padding:10px;
+      margin-bottom:10px;
+      background:white;
+      border-radius:6px;
+      box-shadow:0 1px 3px rgba(0,0,0,0.15);
+    }
+
+    .drag-handle {
+      grid-area:handle;
+      cursor:grab;
+      user-select:none;
+      padding-top:4px;
+      font-size:20px;
+    }
+
+    .route-main,
+    .drawn-route-main {
+      grid-area:main;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .point-row {
+      display:grid;
+      grid-template-columns: 70px 1fr 32px 1fr;
+      grid-template-areas:
+        "label addr pick lbl";
+      gap:6px;
+      align-items:center;
+    }
+
+    .point-label {
+      grid-area:label;
+      font-size:13px;
+      font-weight:bold;
+    }
+
+    .addr-input,
+    .name-input {
+      padding:6px;
+      border-radius:4px;
+      border:1px solid #aaa;
+      font-size:13px;
+      width:100%;
+      box-sizing:border-box;
+    }
+
+    .addr-input { grid-area:addr; }
+    .name-input { grid-area:lbl; }
+
+    .pick-btn {
+      grid-area:pick;
+      cursor:pointer;
+      border:none;
+      border-radius:4px;
+      background:#eee;
+      font-size:16px;
+      padding:4px 6px;
+    }
+
+    .pick-btn:hover { background:#ddd; }
+
+    .color-row { display:flex; flex-direction:column; gap:6px; }
+
+    .color-controls {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      font-size:13px;
+    }
+
+    .color-input {
+      width:40px;
+      height:32px;
+      border:none;
+      border-radius:4px;
+      padding:0;
+      cursor:pointer;
+    }
+
+    .preset-swatches {
+      width:100%;
+      display:grid;
+      grid-template-columns:repeat(11, 1fr);
+      gap:4px;
+    }
+
+    .preset-swatch {
+      width:100%;
+      padding-top:100%;
+      border-radius:3px;
+      cursor:pointer;
+      border:1px solid rgba(0,0,0,0.25);
+    }
+
+    .bottom-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-top:6px;
+    }
+
+    .mode-row {
+      display:flex;
+      gap:6px;
+      font-size:13px;
+    }
+
+    .buttons-row {
+      display:flex;
+      gap:8px;
+    }
+
+    .removeRoute,
+    .toggleRoute,
+    .removeDrawnRoute,
+    .toggleDrawnRoute {
+      cursor:pointer;
+      padding:6px 10px;
+      border:none;
+      border-radius:4px;
+      font-size:13px;
+    }
+
+    .removeRoute,
+    .removeDrawnRoute {
+      background:#b22222;
+      color:white;
+    }
+
+    .toggleRoute,
+    .toggleDrawnRoute {
+      background:#666;
+      color:white;
+    }
+
+    .full-btn {
+      width:100%;
+      padding:8px 10px;
+      border:none;
+      border-radius:4px;
+      margin-top:6px;
+      background:#0b6fa6;
+      color:white;
+      cursor:pointer;
+      font-size:15px;
+    }
+
+    .label-box {
+      padding:6px 10px;
+      border-radius:8px;
+      font-weight:bold;
+      white-space:nowrap;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      pointer-events:none;
+    }
+
+    /* Floating buttons */
+    .panel-toggle,
+    .free-marker-btn {
+      position:absolute;
+      bottom:16px;
+      left:16px;
+      width:48px;
+      height:48px;
+      border-radius:50%;
+      border:1px solid #ccc;
+      background:white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      z-index:1000;
+    }
+
+    .free-marker-btn {
+      bottom:78px;
+    }
+
+    /* Collapsible sections */
+    .section {
+      margin-top:12px;
+      border:1px solid #ccc;
+      border-radius:6px;
+      background:white;
+    }
+
+    .section-header {
+      padding:8px 10px;
+      background:#eee;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      font-weight:bold;
+      gap:6px;
+    }
+
+    .section-header .section-arrow {
+      width:12px;
+    }
+
+    .section-body {
+      padding:10px;
+      border-top:1px solid #ccc;
+    }
+
+    .section.collapsed .section-body {
+      display:none;
+    }
+
+    .section.collapsed .section-header {
+      background:#f7f7f7;
+    }
+
+    #drawHint {
+      font-size:12px;
+      margin-top:4px;
+      color:#555;
+    }
+  </style>
+</head>
+<body>
+
+<header>Movement Order Map Maker</header>
+
+<div class="layout">
+  <div id="map"></div>
+
+  <button id="panelToggle" class="panel-toggle">✕</button>
+  <button id="addFreeMarkerBtn" class="free-marker-btn">📍</button>
+
+  <!-- SIDEBAR -->
+  <div id="sidebar" class="sidebar">
+    <h3>Routes</h3>
+    <div id="routeContainer"></div>
+    <button id="addRouteBtn" class="full-btn">➕ Add Route</button>
+
+    <!-- Label Style Panel -->
+    <div class="section collapsed" id="labelSection">
+      <div class="section-header">
+        <span class="section-arrow">▸</span> Label Style
+      </div>
+      <div class="section-body">
+        <div style="display:flex; gap:10px;">
+          <select id="labelFont" style="flex:2; padding:6px;">
+            <option>Arial</option>
+            <option>Helvetica</option>
+            <option>Verdana</option>
+            <option>Georgia</option>
+            <option>Times New Roman</option>
+            <option>Courier New</option>
+          </select>
+
+          <!-- default 12px -->
+          <select id="labelFontSize" style="flex:1; padding:6px;">
+            <option selected>12px</option>
+            <option>14px</option>
+            <option>16px</option>
+            <option>18px</option>
+            <option>20px</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <button id="drawAllBtn" class="full-btn">Draw All Routes</button>
+    <button id="satToggle" class="full-btn">🛰 Satellite View</button>
+    <!-- Drawing Tools Panel -->
+    <div class="section collapsed" id="drawingSection">
+      <div class="section-header">
+        <span class="section-arrow">▸</span> Drawing Tools
+      </div>
+      <div class="section-body">
+        <label>
+          Mode:
+          <select id="drawModeSelect">
+            <option value="none">None</option>
+            <option value="freehand">Freehand</option>
+            <option value="points">Point by Point</option>
+          </select>
+        </label>
+
+        <button id="cancelDrawBtn" class="full-btn" style="margin-top:4px; display:none;">
+          Cancel Drawing
+        </button>
+
+        <div id="drawHint" style="display:none;"></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:16px;">Drawn Routes</h3>
+    <div id="drawnRouteContainer"></div>
+
+    <h3 style="margin-top:16px;">Dropped Pins</h3>
+    <div id="freeMarkerContainer"></div>
+  </div>
+</div>
+
+<!-- Google Places -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
+
+<script>
+/* ======================== MAP ======================== */
+const map = L.map("map").setView([52.5, -1.5], 6);
+
+const streets = L.tileLayer(
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom:19 }
+).addTo(map);
+
+const esriSat = L.tileLayer(
+ "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+ { maxZoom:19 }
+);
+
+let satelliteOn = false;
+
+/* Layer groups */
+const routeLayer        = L.layerGroup().addTo(map);
+const routeMarkerLayer  = L.layerGroup().addTo(map);
+const freeMarkerLayer   = L.layerGroup().addTo(map);
+const drawnRouteLayer   = L.layerGroup().addTo(map);
+const drawnMarkerLayer  = L.layerGroup().addTo(map);
+const leaderLayer       = L.layerGroup().addTo(map);
+
+/* ======================== SIDEBAR & ZOOM ======================== */
+const sidebar     = document.getElementById("sidebar");
+const panelToggle = document.getElementById("panelToggle");
+let panelOpen     = true;
+
+function applyLayout(){
+  sidebar.classList.toggle("hidden", !panelOpen);
+
+  const zoomBlock = document.querySelector(".leaflet-top.leaflet-left");
+  if(zoomBlock){
+    zoomBlock.style.left = panelOpen ? "460px" : "10px";
+  }
+
+  setTimeout(()=>map.invalidateSize(), 200);
+}
+
+panelToggle.addEventListener("click",()=>{
+  panelOpen = !panelOpen;
+  applyLayout();
+});
+
+applyLayout();
+
+/* ======================== COLLAPSIBLE PANELS ======================== */
+document.querySelectorAll(".section-header").forEach(header=>{
+  header.addEventListener("click",()=>{
+    const section = header.parentElement;
+    const arrow   = header.querySelector(".section-arrow");
+    const collapsed = section.classList.toggle("collapsed");
+    arrow.textContent = collapsed ? "▸" : "▾";
+  });
+});
+
+/* ======================== SATELLITE ======================== */
+document.getElementById("satToggle").addEventListener("click",()=>{
+  satelliteOn = !satelliteOn;
+  if(satelliteOn){
+    map.removeLayer(streets);
+    esriSat.addTo(map);
+  } else {
+    map.removeLayer(esriSat);
+    streets.addTo(map);
+  }
+});
+
+/* ======================== GOOGLE AUTOCOMPLETE ======================== */
+const startAcMap = new Map();
+const endAcMap   = new Map();
+
+function attachAC(input, mapObj){
+  const ac = new google.maps.places.Autocomplete(input, {fields:["geometry"]});
+  mapObj.set(input, ac);
+}
+
+/* ======================== COLOUR PRESETS ======================== */
+function presetColors(){
+  return [
+    {box:"#A72219", text:"#ffffff"},
+    {box:"#D43B2A", text:"#ffffff"},
+    {box:"#E58E26", text:"#000000"},
+    {box:"#F2C94C", text:"#000000"},
+    {box:"#F8E45C", text:"#000000"},
+    {box:"#9CCC65", text:"#000000"},
+    {box:"#43A047", text:"#ffffff"},
+    {box:"#4FC3F7", text:"#000000"},
+    {box:"#2196F3", text:"#ffffff"},
+    {box:"#0D47A1", text:"#ffffff"}
+  ];
+}
+
+/* ======================== ROUTES ======================== */
+let routes = [];
+let nextRouteId = 1;
+const routeContainer = document.getElementById("routeContainer");
+
+/* ========= Marker SVG ========= */
+function makeMarker(color){
+  const svg = `
+    <svg width="32" height="48" viewBox="0 0 32 48"
+         xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 0 C7 0 0 7 0 16 C0 30 16 48 16 48
+               C16 48 32 30 32 16 C32 7 25 0 16 0Z"
+            fill="${color}" stroke="white" stroke-width="2"/>
+      <circle cx="16" cy="16" r="6" fill="white"/>
+    </svg>`;
+  return L.icon({
+    iconUrl: "data:image/svg+xml;base64," + btoa(svg),
+    iconSize:[32,48],
+    iconAnchor:[16,48]
+  });
+}
+
+/* ============ Leader Line (label → anchor) ============ */
+function makeLeaderLine(fromLatLng, toLatLng){
+  return L.polyline([fromLatLng, toLatLng], {
+    color:"#000",
+    weight:3,
+    opacity:0.6
+  });
+}
+/* ======================== CREATE ROUTE ROW ======================== */
+function getRouteMode(r){
+  const el = r.row.querySelector(`input[name="mode-${r.id}"]:checked`);
+  return el ? el.value : "DRIVE";
+}
+
+function createColourDropdown(selected){
+  const opts = presetColors()
+    .map(c => `<option value="${c.box}" data-text="${c.text}" ${c.box===selected ? "selected":""}>${c.box}</option>`)
+    .join("");
+  return opts;
+}
+
+function createRouteRow(){
+  const row = document.createElement("div");
+  row.className = "route-row";
+
+  row.innerHTML = `
+    <div class="drag-handle">☰</div>
+    <div class="route-main">
+
+      <div class="point-row">
+        <div class="point-label">Start:</div>
+        <input class="addr-input start-addr" placeholder="Start address or postcode" />
+        <button class="pick-btn pick-start">📍</button>
+        <input class="name-input start-name" placeholder="Start label" />
+      </div>
+
+      <div class="point-row">
+        <div class="point-label">End:</div>
+        <input class="addr-input end-addr" placeholder="End address or postcode" />
+        <button class="pick-btn pick-end">📍</button>
+        <input class="name-input end-name" placeholder="End label" />
+      </div>
+
+      <div class="color-row">
+        <div class="color-controls">
+          <label>Box:</label>
+          <select class="color-input boxColor">
+            ${createColourDropdown("#2196F3")}
+          </select>
+
+          <label>Text:</label>
+          <select class="color-input textColor">
+            ${createColourDropdown("#ffffff")}
+          </select>
+        </div>
+      </div>
+
+      <div class="bottom-row">
+        <div class="mode-row">
+          Mode:
+          <label><input type="radio" name="mode-${nextRouteId}" value="DRIVE" checked> Drive</label>
+          <label><input type="radio" name="mode-${nextRouteId}" value="WALK"> Walk</label>
+        </div>
+        <div class="buttons-row">
+          <button class="toggleRoute">🙈 Hide</button>
+          <button class="removeRoute">✖ Delete</button>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  routeContainer.appendChild(row);
+
+  const r = {
+    id: nextRouteId++,
+    row,
+    startAddrInput:  row.querySelector(".start-addr"),
+    startLabelInput: row.querySelector(".start-name"),
+    endAddrInput:    row.querySelector(".end-addr"),
+    endLabelInput:   row.querySelector(".end-name"),
+    boxInput:        row.querySelector(".boxColor"),
+    textInput:       row.querySelector(".textColor"),
+    visible: true,
+
+    /* OLD markers removed — replaced with draggable LABEL BOXES */
+    anchorStart: null,
+    anchorEnd:   null,
+    labelStart:  null,
+    labelEnd:    null,
+    leaderStart: null,
+    leaderEnd:   null,
+
+    polyline: null,
+    startLatLng: null,
+    endLatLng: null
+  };
+
+  attachAC(r.startAddrInput, startAcMap);
+  attachAC(r.endAddrInput, endAcMap);
+
+  row.querySelector(".toggleRoute").onclick = () => toggleRoute(r);
+  row.querySelector(".removeRoute").onclick = () => removeRoute(r);
+
+  row.querySelector(".pick-start").onclick = () => {
+    pickMode = { route: r, which:"start" };
+    alert("Click map to place the START point.");
+  };
+
+  row.querySelector(".pick-end").onclick = () => {
+    pickMode = { route: r, which:"end" };
+    alert("Click map to place the END point.");
+  };
+
+  /* colour dropdown change -> update route */
+  row.querySelector(".boxColor").onchange =
+  row.querySelector(".textColor").onchange = () => {
+    if(r.startLatLng || r.endLatLng) drawRoute(r, getRouteMode(r));
+  };
+
+  routes.push(r);
+  return r;
+}
+
+createRouteRow();
+
+Sortable.create(routeContainer,{handle:".drag-handle",animation:150});
+
+/* ======================== REMOVE / TOGGLE ROUTE ======================== */
+function removeRoute(r){
+  leaderLayer.removeLayer(r.leaderStart);
+  leaderLayer.removeLayer(r.leaderEnd);
+  drawnMarkerLayer.removeLayer(r.labelStart);
+  drawnMarkerLayer.removeLayer(r.labelEnd);
+
+  if(r.polyline) routeLayer.removeLayer(r.polyline);
+
+  r.row.remove();
+  routes = routes.filter(x => x !== r);
+}
+
+function toggleRoute(r){
+  r.visible = !r.visible;
+  const btn = r.row.querySelector(".toggleRoute");
+  btn.textContent = r.visible ? "🙈 Hide" : "👁 Show";
+
+  if(r.polyline){
+    if(r.visible) routeLayer.addLayer(r.polyline);
+    else          routeLayer.removeLayer(r.polyline);
+  }
+
+  [r.labelStart, r.labelEnd, r.leaderStart, r.leaderEnd].forEach(l=>{
+    if(!l) return;
+    if(r.visible){
+      if(l instanceof L.Marker) drawnMarkerLayer.addLayer(l);
+      else leaderLayer.addLayer(l);
+    }
+    else{
+      if(l instanceof L.Marker) drawnMarkerLayer.removeLayer(l);
+      else leaderLayer.removeLayer(l);
+    }
+  });
+}
+
+/* ======================== POLYLINE DECODER ======================== */
+function decodePolyline(encoded){
+  let coords=[],lat=0,lng=0,index=0;
+
+  while(index < encoded.length){
+    let b,shift=0,result=0;
+
+    do{
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while(b >= 0x20);
+
+    const dlat = (result & 1) ? ~(result>>1) : (result>>1);
+    lat += dlat;
+
+    shift = 0; result = 0;
+
+    do{
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while(b >= 0x20);
+
+    const dlng = (result & 1) ? ~(result>>1) : (result>>1);
+    lng += dlng;
+
+    coords.push([lat/1e5, lng/1e5]);
+  }
+  return coords;
+}
+
+/* ======================== GOOGLE ROUTING ======================== */
+async function computeRoute(start, end, mode){
+  const body = {
+    origin:{ location:{ latLng:{ latitude:start[0], longitude:start[1] }}},
+    destination:{ location:{ latLng:{ latitude:end[0], longitude:end[1] }}},
+    travelMode: mode
+  };
+
+  const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "X-Goog-Api-Key":"AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
+      "X-Goog-FieldMask":"routes.polyline.encodedPolyline"
+    },
+    body:JSON.stringify(body)
+  });
+
+  const data = await res.json();
+  if(!data.routes) return [];
+  return decodePolyline(data.routes[0].polyline.encodedPolyline);
+}
+/* ======================== DRAGGABLE LABEL BOXES ======================== */
+
+function createLabelBox(latlng, text, boxColor, textColor){
+  const div = L.divIcon({
+    html: `<div class="label-box"
+                 style="background:${boxColor};color:${textColor};
+                        font-size:12px;font-family:Arial;">
+              ${text}
+           </div>`,
+    className:"",
+    iconSize:[0,0],
+    iconAnchor:[-10,-10]
+  });
+
+  const marker = L.marker(latlng, { draggable:true, icon:div }).addTo(drawnMarkerLayer);
+  return marker;
+}
+
+/* ========== UPDATE LEADER LINES WHEN LABEL MOVES ========== */
+function updateLeader(r){
+  if(r.labelStart && r.anchorStart && r.leaderStart){
+    r.leaderStart.setLatLngs([r.labelStart.getLatLng(), r.anchorStart]);
+  }
+  if(r.labelEnd && r.anchorEnd && r.leaderEnd){
+    r.leaderEnd.setLatLngs([r.labelEnd.getLatLng(), r.anchorEnd]);
+  }
+}
+
+/* ======================== DRAW ONE ROUTE ======================== */
+async function drawRoute(r, mode){
+  /* Clear old graphics */
+  if(r.polyline) routeLayer.removeLayer(r.polyline);
+  leaderLayer.removeLayer(r.leaderStart);
+  leaderLayer.removeLayer(r.leaderEnd);
+  drawnMarkerLayer.removeLayer(r.labelStart);
+  drawnMarkerLayer.removeLayer(r.labelEnd);
+
+  r.polyline     = null;
+  r.labelStart   = null;
+  r.labelEnd     = null;
+  r.leaderStart  = null;
+  r.leaderEnd    = null;
+
+  /* Resolve autocompletes */
+  function resolveLatLng(acMap, input, existing){
+    if(existing) return existing;
+    const ac = acMap.get(input);
+    const place = ac && ac.getPlace && ac.getPlace();
+    if(place?.geometry){
+      return [place.geometry.location.lat(), place.geometry.location.lng()];
+    }
+    return null;
+  }
+
+  r.startLatLng = resolveLatLng(startAcMap, r.startAddrInput, r.startLatLng);
+  r.endLatLng   = resolveLatLng(endAcMap,   r.endAddrInput,   r.endLatLng);
+
+  if(!(r.startLatLng && r.endLatLng)) return;
+
+  /* Request Google route */
+  const coords = await computeRoute(r.startLatLng, r.endLatLng, mode);
+  if(!coords.length) return;
+
+  /* Create polyline */
+  r.polyline = L.polyline(coords, {
+    color: r.boxInput.value,
+    weight:5,
+    dashArray: mode==="WALK" ? "6,10" : null
+  });
+
+  if(r.visible) r.polyline.addTo(routeLayer);
+
+  /* Create anchors (invisible points) */
+  r.anchorStart = L.latLng(r.startLatLng[0], r.startLatLng[1]);
+  r.anchorEnd   = L.latLng(r.endLatLng[0],   r.endLatLng[1]);
+
+  /* Create labels */
+  r.labelStart = createLabelBox(r.anchorStart, r.startLabelInput.value || "Start", r.boxInput.value, r.textInput.value);
+  r.labelEnd   = createLabelBox(r.anchorEnd,   r.endLabelInput.value   || "End",   r.boxInput.value, r.textInput.value);
+
+  /* Create leader lines */
+  r.leaderStart = makeLeaderLine(r.labelStart.getLatLng(), r.anchorStart);
+  r.leaderEnd   = makeLeaderLine(r.labelEnd.getLatLng(),   r.anchorEnd);
+
+  if(r.visible){
+    leaderLayer.addLayer(r.leaderStart);
+    leaderLayer.addLayer(r.leaderEnd);
+  }
+
+  /* Drag events update leader lines */
+  r.labelStart.on("drag", ()=>updateLeader(r));
+  r.labelEnd.on("drag",   ()=>updateLeader(r));
+}
+/* ======================== DRAW ALL ROUTES ======================== */
+document.getElementById("drawAllBtn").onclick = async ()=>{
+  for(const r of routes){
+    await drawRoute(r, getRouteMode(r));
+  }
+
+  let b = null;
+  routeLayer.eachLayer(l=>{
+    if(!b) b = l.getBounds();
+    else   b.extend(l.getBounds());
+  });
+
+  if(b) map.fitBounds(b,{padding:[40,40]});
+};
+
+/* ======================== DRAWING TOOLS ======================== */
+let drawMode = "none";
+let isDrawing = false;
+let tempLine = null;
+let tempPoints = [];
+
+let pickMode = null;
+let dropMode = false;
+
+/* Update UI */
+function setDrawMode(mode){
+  drawMode = mode;
+  isDrawing = false;
+
+  const hint = document.getElementById("drawHint");
+  const cancel = document.getElementById("cancelDrawBtn");
+
+  if(tempLine){
+    drawnRouteLayer.removeLayer(tempLine);
+    tempLine = null;
+  }
+  tempPoints = [];
+
+  cancel.style.display = (mode==="freehand" || mode==="points") ? "block":"none";
+  cancel.disabled = true;
+
+  hint.style.display = (mode==="none") ? "none":"block";
+  hint.textContent =
+      mode==="freehand" ? "Freehand: click + drag" :
+      mode==="points"   ? "Point-by-point: click to add points, double-click to finish" :
+      "";
+}
+
+document.getElementById("drawModeSelect").addEventListener("change", e=>{
+  pickMode = null;
+  dropMode = false;
+  setDrawMode(e.target.value);
+});
+
+document.getElementById("cancelDrawBtn").onclick = ()=>{
+  isDrawing = false;
+  if(tempLine){
+    drawnRouteLayer.removeLayer(tempLine);
+    tempLine=null;
+  }
+  tempPoints=[];
+};
+
+/* FREE MARKERS PANEL */
+const freeMarkerContainer = document.getElementById("freeMarkerContainer");
+let freeMarkers = [];
+let freeId = 1;
+
+/* FREE MARKER (DROPPED PIN) */
+function createFreeMarker(latlng, labelText, boxColor, textColor){
+  const id = freeId++;
+
+  const leader = makeLeaderLine(latlng, latlng);
+  leaderLayer.addLayer(leader);
+
+  const labelMarker = createLabelBox(latlng, labelText, boxColor, textColor);
+  labelMarker.on("drag", ()=> leader.setLatLngs([labelMarker.getLatLng(), latlng]));
+
+  /* Panel entry */
+  const row = document.createElement("div");
+  row.className = "drawn-route-row";
+  row.innerHTML = `
+    <div class="drawn-route-main">
+      <div class="point-row">
+        <div class="point-label">Label:</div>
+        <input class="name-input free-label" value="${labelText}">
+      </div>
+      <div class="color-row">
+        <div class="color-controls">
+          <label>Box:</label>
+          <select class="color-input boxColor">${createColourDropdown(boxColor)}</select>
+          <label>Text:</label>
+          <select class="color-input textColor">${createColourDropdown(textColor)}</select>
+        </div>
+      </div>
+      <div class="buttons-row">
+        <button class="toggleBtn">🙈 Hide</button>
+        <button class="removeBtn">✖ Delete</button>
+      </div>
+    </div>
+  `;
+  freeMarkerContainer.appendChild(row);
+
+  const entry = {
+    id,
+    latlng,
+    row,
+    labelMarker,
+    leader,
+    visible:true,
+    boxColor,
+    textColor
+  };
+  freeMarkers.push(entry);
+
+  /* Events */
+  row.querySelector(".free-label").oninput = function(){
+    const text = this.value;
+    entry.labelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+  };
+
+  row.querySelector(".boxColor").onchange = function(){
+    entry.boxColor = this.value;
+    const text = row.querySelector(".free-label").value;
+    entry.labelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+  };
+
+  row.querySelector(".textColor").onchange = function(){
+    entry.textColor = this.value;
+    const text = row.querySelector(".free-label").value;
+    entry.labelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+  };
+
+  row.querySelector(".toggleBtn").onclick = function(){
+    entry.visible = !entry.visible;
+    this.textContent = entry.visible ? "🙈 Hide" : "👁 Show";
+
+    if(entry.visible){
+      drawnMarkerLayer.addLayer(entry.labelMarker);
+      leaderLayer.addLayer(entry.leader);
+    } else {
+      drawnMarkerLayer.removeLayer(entry.labelMarker);
+      leaderLayer.removeLayer(entry.leader);
+    }
+  };
+
+  row.querySelector(".removeBtn").onclick = function(){
+    drawnMarkerLayer.removeLayer(entry.labelMarker);
+    leaderLayer.removeLayer(entry.leader);
+    row.remove();
+    freeMarkers = freeMarkers.filter(x=>x.id!==entry.id);
+  };
+}
+
+/* CLICK TO DROP PIN */
+document.getElementById("addFreeMarkerBtn").onclick = ()=>{
+  dropMode = true;
+  drawMode = "none";
+  document.getElementById("drawModeSelect").value = "none";
+  alert("Click map to drop a pin.");
+};
+/* ======================== MAP CLICK HANDLING ======================== */
+map.on("click", e=>{
+  const latlng = e.latlng;
+
+  /* → DROP PIN */
+  if(dropMode){
+    dropMode = false;
+    const label = prompt("Pin label:", "Point");
+    if(label !== null){
+      createFreeMarker(latlng, label, "#2196F3", "#ffffff");
+    }
+    return;
+  }
+
+  /* → PICK START/END FOR ROUTES */
+  if(pickMode){
+    const { route, which } = pickMode;
+    pickMode = null;
+
+    if(which==="start") route.startLatLng = [latlng.lat, latlng.lng];
+    else               route.endLatLng   = [latlng.lat, latlng.lng];
+
+    drawRoute(route, getRouteMode(route));
+    return;
+  }
+
+  /* → POINT-BY-POINT DRAWING */
+  if(drawMode==="points"){
+    if(!isDrawing){
+      isDrawing = true;
+      tempPoints = [latlng];
+      tempLine = L.polyline(tempPoints, {color:"#000", weight:3}).addTo(drawnRouteLayer);
+    } else {
+      tempPoints.push(latlng);
+      tempLine.setLatLngs(tempPoints);
+    }
+    return;
+  }
+});
+
+/* FINISH POINT-BY-POINT DRAWING */
+map.on("dblclick", e=>{
+  if(drawMode==="points" && isDrawing){
+    isDrawing = false;
+
+    if(tempPoints.length >= 2){
+      /* create drawn route here */
+      createDrawnRoute(tempPoints);
+    }
+
+    drawnRouteLayer.removeLayer(tempLine);
+    tempLine = null;
+    tempPoints=[];
+  }
+});
+
+/* FREEHAND DRAWING */
+map.on("mousedown", e=>{
+  if(drawMode==="freehand"){
+    isDrawing=true;
+    tempPoints=[e.latlng];
+    tempLine=L.polyline(tempPoints,{color:"#000",weight:3}).addTo(drawnRouteLayer);
+    map.dragging.disable();
+  }
+});
+
+map.on("mousemove", e=>{
+  if(drawMode==="freehand" && isDrawing){
+    tempPoints.push(e.latlng);
+    tempLine.setLatLngs(tempPoints);
+  }
+});
+
+map.on("mouseup", e=>{
+  if(drawMode==="freehand" && isDrawing){
+    isDrawing=false;
+    map.dragging.enable();
+
+    if(tempPoints.length>=2){
+      createDrawnRoute(tempPoints);
+    }
+
+    drawnRouteLayer.removeLayer(tempLine);
+    tempLine=null;
+    tempPoints=[];
+  }
+});
+
+/* ======================== CREATE DRAWN ROUTE ======================== */
+let drawnRoutes=[];
+let nextDrawnRouteId=1;
+const drawnRouteContainer=document.getElementById("drawnRouteContainer");
+
+function createDrawnRoute(points){
+  const id = nextDrawnRouteId++;
+
+  const start = points[0];
+  const end   = points[points.length-1];
+
+  const labelStart = prompt("Start label:","Start") || "Start";
+  const labelEnd   = prompt("End label:","End")     || "End";
+
+  /* polyline */
+  const poly = L.polyline(points, {color:"#2196F3", weight:4});
+  poly.addTo(drawnRouteLayer);
+
+  /* anchors */
+  const anchorStart = L.latLng(start.lat, start.lng);
+  const anchorEnd   = L.latLng(end.lat,   end.lng);
+
+  /* labels */
+  const startLabelMarker = createLabelBox(anchorStart,labelStart,"#2196F3","#ffffff");
+  const endLabelMarker   = createLabelBox(anchorEnd,labelEnd,"#2196F3","#ffffff");
+
+  /* leaders */
+  const leaderStart = makeLeaderLine(startLabelMarker.getLatLng(), anchorStart);
+  const leaderEnd   = makeLeaderLine(endLabelMarker.getLatLng(),   anchorEnd);
+
+  leaderLayer.addLayer(leaderStart);
+  leaderLayer.addLayer(leaderEnd);
+
+  startLabelMarker.on("drag", ()=>leaderStart.setLatLngs([startLabelMarker.getLatLng(), anchorStart]));
+  endLabelMarker.on("drag",   ()=>leaderEnd.setLatLngs([endLabelMarker.getLatLng(),   anchorEnd]));
+
+  /* Panel row */
+  const row=document.createElement("div");
+  row.className="drawn-route-row";
+  row.innerHTML=`
+    <div class="drawn-route-main">
+
+      <div class="point-row">
+        <div class="point-label">Start:</div>
+        <input class="name-input dr-start" value="${labelStart}">
+      </div>
+
+      <div class="point-row">
+        <div class="point-label">End:</div>
+        <input class="name-input dr-end" value="${labelEnd}">
+      </div>
+
+      <div class="color-row">
+        <div class="color-controls">
+          <label>Box:</label>
+          <select class="color-input boxColor">${createColourDropdown("#2196F3")}</select>
+
+          <label>Text:</label>
+          <select class="color-input textColor">${createColourDropdown("#ffffff")}</select>
+        </div>
+      </div>
+
+      <div class="buttons-row">
+        <button class="toggleBtn">🙈 Hide</button>
+        <button class="removeBtn">✖ Delete</button>
+      </div>
+
+    </div>
+  `;
+  drawnRouteContainer.appendChild(row);
+
+  const entry={
+    id,
+    points,
+    poly,
+    row,
+    startLabelMarker,
+    endLabelMarker,
+    leaderStart,
+    leaderEnd,
+    visible:true,
+
+    boxColor:"#2196F3",
+    textColor:"#ffffff"
+  };
+  drawnRoutes.push(entry);
+
+  /* EVENTS */
+  row.querySelector(".dr-start").oninput=function(){
+    const text=this.value;
+    entry.startLabelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+  };
+
+  row.querySelector(".dr-end").oninput=function(){
+    const text=this.value;
+    entry.endLabelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+  };
+
+  row.querySelector(".boxColor").onchange=function(){
+    entry.boxColor=this.value;
+    const startText=row.querySelector(".dr-start").value;
+    const endText=row.querySelector(".dr-end").value;
+
+    entry.poly.setStyle({color:entry.boxColor});
+
+    entry.startLabelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${startText}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+    entry.endLabelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${endText}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+  };
+
+  row.querySelector(".textColor").onchange=function(){
+    entry.textColor=this.value;
+    const startText=row.querySelector(".dr-start").value;
+    const endText=row.querySelector(".dr-end").value;
+
+    entry.startLabelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${startText}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+    entry.endLabelMarker.setIcon(L.divIcon({
+      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${endText}</div>`,
+      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+    }));
+  };
+
+  row.querySelector(".toggleBtn").onclick=function(){
+    entry.visible=!entry.visible;
+    this.textContent=entry.visible?"🙈 Hide":"👁 Show";
+
+    if(entry.visible){
+      drawnRouteLayer.addLayer(entry.poly);
+      drawnMarkerLayer.addLayer(entry.startLabelMarker);
+      drawnMarkerLayer.addLayer(entry.endLabelMarker);
+      leaderLayer.addLayer(entry.leaderStart);
+      leaderLayer.addLayer(entry.leaderEnd);
+    } else {
+      drawnRouteLayer.removeLayer(entry.poly);
+      drawnMarkerLayer.removeLayer(entry.startLabelMarker);
+      drawnMarkerLayer.removeLayer(entry.endLabelMarker);
+      leaderLayer.removeLayer(entry.leaderStart);
+      leaderLayer.removeLayer(entry.leaderEnd);
+    }
+  };
+
+  row.querySelector(".removeBtn").onclick=function(){
+    drawnRouteLayer.removeLayer(entry.poly);
+    drawnMarkerLayer.removeLayer(entry.startLabelMarker);
+    drawnMarkerLayer.removeLayer(entry.endLabelMarker);
+    leaderLayer.removeLayer(entry.leaderStart);
+    leaderLayer.removeLayer(entry.leaderEnd);
+    row.remove();
+    drawnRoutes=drawnRoutes.filter(x=>x.id!==entry.id);
+  };
+}
+
+/* DONE */
+</script>
+
+</body>
+</html>
