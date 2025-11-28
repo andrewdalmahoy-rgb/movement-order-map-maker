@@ -162,21 +162,6 @@
       cursor:pointer;
     }
 
-    .preset-swatches {
-      width:100%;
-      display:grid;
-      grid-template-columns:repeat(11, 1fr);
-      gap:4px;
-    }
-
-    .preset-swatch {
-      width:100%;
-      padding-top:100%;
-      border-radius:3px;
-      cursor:pointer;
-      border:1px solid rgba(0,0,0,0.25);
-    }
-
     .bottom-row {
       display:flex;
       justify-content:space-between;
@@ -351,6 +336,7 @@
 
     <button id="drawAllBtn" class="full-btn">Draw All Routes</button>
     <button id="satToggle" class="full-btn">🛰 Satellite View</button>
+
     <!-- Drawing Tools Panel -->
     <div class="section collapsed" id="drawingSection">
       <div class="section-header">
@@ -422,10 +408,10 @@ function applyLayout(){
     zoomBlock.style.left = panelOpen ? "460px" : "10px";
   }
 
-  setTimeout(()=>map.invalidateSize(), 200);
+  setTimeout(function(){ map.invalidateSize(); }, 200);
 }
 
-panelToggle.addEventListener("click",()=>{
+panelToggle.addEventListener("click",function(){
   panelOpen = !panelOpen;
   applyLayout();
 });
@@ -433,8 +419,8 @@ panelToggle.addEventListener("click",()=>{
 applyLayout();
 
 /* ======================== COLLAPSIBLE PANELS ======================== */
-document.querySelectorAll(".section-header").forEach(header=>{
-  header.addEventListener("click",()=>{
+document.querySelectorAll(".section-header").forEach(function(header){
+  header.addEventListener("click",function(){
     const section = header.parentElement;
     const arrow   = header.querySelector(".section-arrow");
     const collapsed = section.classList.toggle("collapsed");
@@ -443,7 +429,7 @@ document.querySelectorAll(".section-header").forEach(header=>{
 });
 
 /* ======================== SATELLITE ======================== */
-document.getElementById("satToggle").addEventListener("click",()=>{
+document.getElementById("satToggle").addEventListener("click",function(){
   satelliteOn = !satelliteOn;
   if(satelliteOn){
     map.removeLayer(streets);
@@ -486,14 +472,12 @@ const routeContainer = document.getElementById("routeContainer");
 
 /* ========= Marker SVG ========= */
 function makeMarker(color){
-  const svg = `
-    <svg width="32" height="48" viewBox="0 0 32 48"
-         xmlns="http://www.w3.org/2000/svg">
-      <path d="M16 0 C7 0 0 7 0 16 C0 30 16 48 16 48
-               C16 48 32 30 32 16 C32 7 25 0 16 0Z"
-            fill="${color}" stroke="white" stroke-width="2"/>
-      <circle cx="16" cy="16" r="6" fill="white"/>
-    </svg>`;
+  const svg = ''
+    + '<svg width="32" height="48" viewBox="0 0 32 48" xmlns="http://www.w3.org/2000/svg">'
+    + '  <path d="M16 0 C7 0 0 7 0 16 C0 30 16 48 16 48 C16 48 32 30 32 16 C32 7 25 0 16 0Z"'
+    + '        fill="' + color + '" stroke="white" stroke-width="2"/>'
+    + '  <circle cx="16" cy="16" r="6" fill="white"/>'
+    + '</svg>';
   return L.icon({
     iconUrl: "data:image/svg+xml;base64," + btoa(svg),
     iconSize:[32,48],
@@ -509,75 +493,79 @@ function makeLeaderLine(fromLatLng, toLatLng){
     opacity:0.6
   });
 }
+
 /* ======================== CREATE ROUTE ROW ======================== */
 function getRouteMode(r){
-  const el = r.row.querySelector(`input[name="mode-${r.id}"]:checked`);
+  const el = r.row.querySelector('input[name="mode-' + r.id + '"]:checked');
   return el ? el.value : "DRIVE";
 }
 
 function createColourDropdown(selected){
-  const opts = presetColors()
-    .map(c => `<option value="${c.box}" data-text="${c.text}" ${c.box===selected ? "selected":""}>${c.box}</option>`)
-    .join("");
-  return opts;
+  const presets = presetColors();
+  let html = "";
+  for (let i = 0; i < presets.length; i++){
+    const c = presets[i];
+    html += '<option value="' + c.box + '" data-text="' + c.text + '"' +
+            (c.box === selected ? ' selected' : '') +
+            '>' + c.box + '</option>';
+  }
+  return html;
 }
 
 function createRouteRow(){
   const row = document.createElement("div");
   row.className = "route-row";
 
-  row.innerHTML = `
-    <div class="drag-handle">☰</div>
-    <div class="route-main">
+  row.innerHTML = ''
+    + '<div class="drag-handle">☰</div>'
+    + '<div class="route-main">'
 
-      <div class="point-row">
-        <div class="point-label">Start:</div>
-        <input class="addr-input start-addr" placeholder="Start address or postcode" />
-        <button class="pick-btn pick-start">📍</button>
-        <input class="name-input start-name" placeholder="Start label" />
-      </div>
+    + '  <div class="point-row">'
+    + '    <div class="point-label">Start:</div>'
+    + '    <input class="addr-input start-addr" placeholder="Start address or postcode" />'
+    + '    <button class="pick-btn pick-start">📍</button>'
+    + '    <input class="name-input start-name" placeholder="Start label" />'
+    + '  </div>'
 
-      <div class="point-row">
-        <div class="point-label">End:</div>
-        <input class="addr-input end-addr" placeholder="End address or postcode" />
-        <button class="pick-btn pick-end">📍</button>
-        <input class="name-input end-name" placeholder="End label" />
-      </div>
+    + '  <div class="point-row">'
+    + '    <div class="point-label">End:</div>'
+    + '    <input class="addr-input end-addr" placeholder="End address or postcode" />'
+    + '    <button class="pick-btn pick-end">📍</button>'
+    + '    <input class="name-input end-name" placeholder="End label" />'
+    + '  </div>'
 
-      <div class="color-row">
-        <div class="color-controls">
-          <label>Box:</label>
-          <select class="color-input boxColor">
-            ${createColourDropdown("#2196F3")}
-          </select>
+    + '  <div class="color-row">'
+    + '    <div class="color-controls">'
+    + '      <label>Box:</label>'
+    + '      <select class="color-input boxColor">'
+    +           createColourDropdown("#2196F3")
+    + '      </select>'
+    + '      <label>Text:</label>'
+    + '      <select class="color-input textColor">'
+    +           createColourDropdown("#ffffff")
+    + '      </select>'
+    + '    </div>'
+    + '  </div>'
 
-          <label>Text:</label>
-          <select class="color-input textColor">
-            ${createColourDropdown("#ffffff")}
-          </select>
-        </div>
-      </div>
+    + '  <div class="bottom-row">'
+    + '    <div class="mode-row">'
+    + '      Mode:'
+    + '      <label><input type="radio" name="mode-' + nextRouteId + '" value="DRIVE" checked> Drive</label>'
+    + '      <label><input type="radio" name="mode-' + nextRouteId + '" value="WALK"> Walk</label>'
+    + '    </div>'
+    + '    <div class="buttons-row">'
+    + '      <button class="toggleRoute">🙈 Hide</button>'
+    + '      <button class="removeRoute">✖ Delete</button>'
+    + '    </div>'
+    + '  </div>'
 
-      <div class="bottom-row">
-        <div class="mode-row">
-          Mode:
-          <label><input type="radio" name="mode-${nextRouteId}" value="DRIVE" checked> Drive</label>
-          <label><input type="radio" name="mode-${nextRouteId}" value="WALK"> Walk</label>
-        </div>
-        <div class="buttons-row">
-          <button class="toggleRoute">🙈 Hide</button>
-          <button class="removeRoute">✖ Delete</button>
-        </div>
-      </div>
-
-    </div>
-  `;
+    + '</div>';
 
   routeContainer.appendChild(row);
 
   const r = {
     id: nextRouteId++,
-    row,
+    row: row,
     startAddrInput:  row.querySelector(".start-addr"),
     startLabelInput: row.querySelector(".start-name"),
     endAddrInput:    row.querySelector(".end-addr"),
@@ -586,7 +574,6 @@ function createRouteRow(){
     textInput:       row.querySelector(".textColor"),
     visible: true,
 
-    /* OLD markers removed — replaced with draggable LABEL BOXES */
     anchorStart: null,
     anchorEnd:   null,
     labelStart:  null,
@@ -602,22 +589,22 @@ function createRouteRow(){
   attachAC(r.startAddrInput, startAcMap);
   attachAC(r.endAddrInput, endAcMap);
 
-  row.querySelector(".toggleRoute").onclick = () => toggleRoute(r);
-  row.querySelector(".removeRoute").onclick = () => removeRoute(r);
+  row.querySelector(".toggleRoute").onclick = function(){ toggleRoute(r); };
+  row.querySelector(".removeRoute").onclick = function(){ removeRoute(r); };
 
-  row.querySelector(".pick-start").onclick = () => {
+  row.querySelector(".pick-start").onclick = function(){
     pickMode = { route: r, which:"start" };
     alert("Click map to place the START point.");
   };
 
-  row.querySelector(".pick-end").onclick = () => {
+  row.querySelector(".pick-end").onclick = function(){
     pickMode = { route: r, which:"end" };
     alert("Click map to place the END point.");
   };
 
   /* colour dropdown change -> update route */
   row.querySelector(".boxColor").onchange =
-  row.querySelector(".textColor").onchange = () => {
+  row.querySelector(".textColor").onchange = function(){
     if(r.startLatLng || r.endLatLng) drawRoute(r, getRouteMode(r));
   };
 
@@ -631,15 +618,14 @@ Sortable.create(routeContainer,{handle:".drag-handle",animation:150});
 
 /* ======================== REMOVE / TOGGLE ROUTE ======================== */
 function removeRoute(r){
-  leaderLayer.removeLayer(r.leaderStart);
-  leaderLayer.removeLayer(r.leaderEnd);
-  drawnMarkerLayer.removeLayer(r.labelStart);
-  drawnMarkerLayer.removeLayer(r.labelEnd);
-
-  if(r.polyline) routeLayer.removeLayer(r.polyline);
+  if(r.leaderStart) leaderLayer.removeLayer(r.leaderStart);
+  if(r.leaderEnd)   leaderLayer.removeLayer(r.leaderEnd);
+  if(r.labelStart)  drawnMarkerLayer.removeLayer(r.labelStart);
+  if(r.labelEnd)    drawnMarkerLayer.removeLayer(r.labelEnd);
+  if(r.polyline)    routeLayer.removeLayer(r.polyline);
 
   r.row.remove();
-  routes = routes.filter(x => x !== r);
+  routes = routes.filter(function(x){ return x !== r; });
 }
 
 function toggleRoute(r){
@@ -652,16 +638,16 @@ function toggleRoute(r){
     else          routeLayer.removeLayer(r.polyline);
   }
 
-  [r.labelStart, r.labelEnd, r.leaderStart, r.leaderEnd].forEach(l=>{
+  [r.labelStart, r.labelEnd].forEach(function(m){
+    if(!m) return;
+    if(r.visible) drawnMarkerLayer.addLayer(m);
+    else          drawnMarkerLayer.removeLayer(m);
+  });
+
+  [r.leaderStart, r.leaderEnd].forEach(function(l){
     if(!l) return;
-    if(r.visible){
-      if(l instanceof L.Marker) drawnMarkerLayer.addLayer(l);
-      else leaderLayer.addLayer(l);
-    }
-    else{
-      if(l instanceof L.Marker) drawnMarkerLayer.removeLayer(l);
-      else leaderLayer.removeLayer(l);
-    }
+    if(r.visible) leaderLayer.addLayer(l);
+    else          leaderLayer.removeLayer(l);
   });
 }
 
@@ -719,15 +705,15 @@ async function computeRoute(start, end, mode){
   if(!data.routes) return [];
   return decodePolyline(data.routes[0].polyline.encodedPolyline);
 }
-/* ======================== DRAGGABLE LABEL BOXES ======================== */
 
+/* ======================== DRAGGABLE LABEL BOXES ======================== */
 function createLabelBox(latlng, text, boxColor, textColor){
   const div = L.divIcon({
-    html: `<div class="label-box"
-                 style="background:${boxColor};color:${textColor};
-                        font-size:12px;font-family:Arial;">
-              ${text}
-           </div>`,
+    html: '<div class="label-box"'
+        + '     style="background:' + boxColor + ';color:' + textColor
+        + '            ;font-size:12px;font-family:Arial;">'
+        + text
+        + '</div>',
     className:"",
     iconSize:[0,0],
     iconAnchor:[-10,-10]
@@ -751,10 +737,10 @@ function updateLeader(r){
 async function drawRoute(r, mode){
   /* Clear old graphics */
   if(r.polyline) routeLayer.removeLayer(r.polyline);
-  leaderLayer.removeLayer(r.leaderStart);
-  leaderLayer.removeLayer(r.leaderEnd);
-  drawnMarkerLayer.removeLayer(r.labelStart);
-  drawnMarkerLayer.removeLayer(r.labelEnd);
+  if(r.leaderStart) leaderLayer.removeLayer(r.leaderStart);
+  if(r.leaderEnd)   leaderLayer.removeLayer(r.leaderEnd);
+  if(r.labelStart)  drawnMarkerLayer.removeLayer(r.labelStart);
+  if(r.labelEnd)    drawnMarkerLayer.removeLayer(r.labelEnd);
 
   r.polyline     = null;
   r.labelStart   = null;
@@ -767,7 +753,7 @@ async function drawRoute(r, mode){
     if(existing) return existing;
     const ac = acMap.get(input);
     const place = ac && ac.getPlace && ac.getPlace();
-    if(place?.geometry){
+    if(place && place.geometry){
       return [place.geometry.location.lat(), place.geometry.location.lng()];
     }
     return null;
@@ -809,17 +795,19 @@ async function drawRoute(r, mode){
   }
 
   /* Drag events update leader lines */
-  r.labelStart.on("drag", ()=>updateLeader(r));
-  r.labelEnd.on("drag",   ()=>updateLeader(r));
+  r.labelStart.on("drag", function(){ updateLeader(r); });
+  r.labelEnd.on("drag",   function(){ updateLeader(r); });
 }
+
 /* ======================== DRAW ALL ROUTES ======================== */
-document.getElementById("drawAllBtn").onclick = async ()=>{
-  for(const r of routes){
+document.getElementById("drawAllBtn").onclick = async function(){
+  for (var i = 0; i < routes.length; i++){
+    var r = routes[i];
     await drawRoute(r, getRouteMode(r));
   }
 
   let b = null;
-  routeLayer.eachLayer(l=>{
+  routeLayer.eachLayer(function(l){
     if(!b) b = l.getBounds();
     else   b.extend(l.getBounds());
   });
@@ -853,20 +841,25 @@ function setDrawMode(mode){
   cancel.style.display = (mode==="freehand" || mode==="points") ? "block":"none";
   cancel.disabled = true;
 
-  hint.style.display = (mode==="none") ? "none":"block";
-  hint.textContent =
+  if(mode==="none"){
+    hint.style.display = "none";
+    hint.textContent = "";
+  } else {
+    hint.style.display = "block";
+    hint.textContent =
       mode==="freehand" ? "Freehand: click + drag" :
       mode==="points"   ? "Point-by-point: click to add points, double-click to finish" :
       "";
+  }
 }
 
-document.getElementById("drawModeSelect").addEventListener("change", e=>{
+document.getElementById("drawModeSelect").addEventListener("change", function(e){
   pickMode = null;
   dropMode = false;
   setDrawMode(e.target.value);
 });
 
-document.getElementById("cancelDrawBtn").onclick = ()=>{
+document.getElementById("cancelDrawBtn").onclick = function(){
   isDrawing = false;
   if(tempLine){
     drawnRouteLayer.removeLayer(tempLine);
@@ -888,42 +881,44 @@ function createFreeMarker(latlng, labelText, boxColor, textColor){
   leaderLayer.addLayer(leader);
 
   const labelMarker = createLabelBox(latlng, labelText, boxColor, textColor);
-  labelMarker.on("drag", ()=> leader.setLatLngs([labelMarker.getLatLng(), latlng]));
+  labelMarker.on("drag", function(){
+    leader.setLatLngs([labelMarker.getLatLng(), latlng]);
+  });
 
   /* Panel entry */
   const row = document.createElement("div");
   row.className = "drawn-route-row";
-  row.innerHTML = `
-    <div class="drawn-route-main">
-      <div class="point-row">
-        <div class="point-label">Label:</div>
-        <input class="name-input free-label" value="${labelText}">
-      </div>
-      <div class="color-row">
-        <div class="color-controls">
-          <label>Box:</label>
-          <select class="color-input boxColor">${createColourDropdown(boxColor)}</select>
-          <label>Text:</label>
-          <select class="color-input textColor">${createColourDropdown(textColor)}</select>
-        </div>
-      </div>
-      <div class="buttons-row">
-        <button class="toggleBtn">🙈 Hide</button>
-        <button class="removeBtn">✖ Delete</button>
-      </div>
-    </div>
-  `;
+  row.innerHTML = ''
+    + '<div class="drawn-route-main">'
+    + '  <div class="point-row">'
+    + '    <div class="point-label">Label:</div>'
+    + '    <input class="name-input free-label" value="' + labelText + '">'
+    + '  </div>'
+    + '  <div class="color-row">'
+    + '    <div class="color-controls">'
+    + '      <label>Box:</label>'
+    + '      <select class="color-input boxColor">' + createColourDropdown(boxColor) + '</select>'
+    + '      <label>Text:</label>'
+    + '      <select class="color-input textColor">' + createColourDropdown(textColor) + '</select>'
+    + '    </div>'
+    + '  </div>'
+    + '  <div class="buttons-row">'
+    + '    <button class="toggleBtn">🙈 Hide</button>'
+    + '    <button class="removeBtn">✖ Delete</button>'
+    + '  </div>'
+    + '</div>';
+
   freeMarkerContainer.appendChild(row);
 
   const entry = {
-    id,
-    latlng,
-    row,
-    labelMarker,
-    leader,
-    visible:true,
-    boxColor,
-    textColor
+    id: id,
+    latlng: latlng,
+    row: row,
+    labelMarker: labelMarker,
+    leader: leader,
+    visible: true,
+    boxColor: boxColor,
+    textColor: textColor
   };
   freeMarkers.push(entry);
 
@@ -931,8 +926,12 @@ function createFreeMarker(latlng, labelText, boxColor, textColor){
   row.querySelector(".free-label").oninput = function(){
     const text = this.value;
     entry.labelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + text + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
   };
 
@@ -940,8 +939,12 @@ function createFreeMarker(latlng, labelText, boxColor, textColor){
     entry.boxColor = this.value;
     const text = row.querySelector(".free-label").value;
     entry.labelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + text + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
   };
 
@@ -949,8 +952,12 @@ function createFreeMarker(latlng, labelText, boxColor, textColor){
     entry.textColor = this.value;
     const text = row.querySelector(".free-label").value;
     entry.labelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + text + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
   };
 
@@ -971,19 +978,20 @@ function createFreeMarker(latlng, labelText, boxColor, textColor){
     drawnMarkerLayer.removeLayer(entry.labelMarker);
     leaderLayer.removeLayer(entry.leader);
     row.remove();
-    freeMarkers = freeMarkers.filter(x=>x.id!==entry.id);
+    freeMarkers = freeMarkers.filter(function(x){ return x.id !== entry.id; });
   };
 }
 
 /* CLICK TO DROP PIN */
-document.getElementById("addFreeMarkerBtn").onclick = ()=>{
+document.getElementById("addFreeMarkerBtn").onclick = function(){
   dropMode = true;
   drawMode = "none";
   document.getElementById("drawModeSelect").value = "none";
   alert("Click map to drop a pin.");
 };
+
 /* ======================== MAP CLICK HANDLING ======================== */
-map.on("click", e=>{
+map.on("click", function(e){
   const latlng = e.latlng;
 
   /* → DROP PIN */
@@ -998,7 +1006,8 @@ map.on("click", e=>{
 
   /* → PICK START/END FOR ROUTES */
   if(pickMode){
-    const { route, which } = pickMode;
+    const route = pickMode.route;
+    const which = pickMode.which;
     pickMode = null;
 
     if(which==="start") route.startLatLng = [latlng.lat, latlng.lng];
@@ -1023,12 +1032,11 @@ map.on("click", e=>{
 });
 
 /* FINISH POINT-BY-POINT DRAWING */
-map.on("dblclick", e=>{
+map.on("dblclick", function(e){
   if(drawMode==="points" && isDrawing){
     isDrawing = false;
 
     if(tempPoints.length >= 2){
-      /* create drawn route here */
       createDrawnRoute(tempPoints);
     }
 
@@ -1039,7 +1047,7 @@ map.on("dblclick", e=>{
 });
 
 /* FREEHAND DRAWING */
-map.on("mousedown", e=>{
+map.on("mousedown", function(e){
   if(drawMode==="freehand"){
     isDrawing=true;
     tempPoints=[e.latlng];
@@ -1048,14 +1056,14 @@ map.on("mousedown", e=>{
   }
 });
 
-map.on("mousemove", e=>{
+map.on("mousemove", function(e){
   if(drawMode==="freehand" && isDrawing){
     tempPoints.push(e.latlng);
     tempLine.setLatLngs(tempPoints);
   }
 });
 
-map.on("mouseup", e=>{
+map.on("mouseup", function(e){
   if(drawMode==="freehand" && isDrawing){
     isDrawing=false;
     map.dragging.enable();
@@ -1103,55 +1111,57 @@ function createDrawnRoute(points){
   leaderLayer.addLayer(leaderStart);
   leaderLayer.addLayer(leaderEnd);
 
-  startLabelMarker.on("drag", ()=>leaderStart.setLatLngs([startLabelMarker.getLatLng(), anchorStart]));
-  endLabelMarker.on("drag",   ()=>leaderEnd.setLatLngs([endLabelMarker.getLatLng(),   anchorEnd]));
+  startLabelMarker.on("drag", function(){
+    leaderStart.setLatLngs([startLabelMarker.getLatLng(), anchorStart]);
+  });
+  endLabelMarker.on("drag",   function(){
+    leaderEnd.setLatLngs([endLabelMarker.getLatLng(),   anchorEnd]);
+  });
 
   /* Panel row */
   const row=document.createElement("div");
   row.className="drawn-route-row";
-  row.innerHTML=`
-    <div class="drawn-route-main">
+  row.innerHTML=''
+    + '<div class="drawn-route-main">'
 
-      <div class="point-row">
-        <div class="point-label">Start:</div>
-        <input class="name-input dr-start" value="${labelStart}">
-      </div>
+    + '  <div class="point-row">'
+    + '    <div class="point-label">Start:</div>'
+    + '    <input class="name-input dr-start" value="' + labelStart + '">'
+    + '  </div>'
 
-      <div class="point-row">
-        <div class="point-label">End:</div>
-        <input class="name-input dr-end" value="${labelEnd}">
-      </div>
+    + '  <div class="point-row">'
+    + '    <div class="point-label">End:</div>'
+    + '    <input class="name-input dr-end" value="' + labelEnd + '">'
+    + '  </div>'
 
-      <div class="color-row">
-        <div class="color-controls">
-          <label>Box:</label>
-          <select class="color-input boxColor">${createColourDropdown("#2196F3")}</select>
+    + '  <div class="color-row">'
+    + '    <div class="color-controls">'
+    + '      <label>Box:</label>'
+    + '      <select class="color-input boxColor">' + createColourDropdown("#2196F3") + '</select>'
+    + '      <label>Text:</label>'
+    + '      <select class="color-input textColor">' + createColourDropdown("#ffffff") + '</select>'
+    + '    </div>'
+    + '  </div>'
 
-          <label>Text:</label>
-          <select class="color-input textColor">${createColourDropdown("#ffffff")}</select>
-        </div>
-      </div>
+    + '  <div class="buttons-row">'
+    + '    <button class="toggleBtn">🙈 Hide</button>'
+    + '    <button class="removeBtn">✖ Delete</button>'
+    + '  </div>'
 
-      <div class="buttons-row">
-        <button class="toggleBtn">🙈 Hide</button>
-        <button class="removeBtn">✖ Delete</button>
-      </div>
+    + '</div>';
 
-    </div>
-  `;
   drawnRouteContainer.appendChild(row);
 
   const entry={
-    id,
-    points,
-    poly,
-    row,
-    startLabelMarker,
-    endLabelMarker,
-    leaderStart,
-    leaderEnd,
+    id: id,
+    points: points,
+    poly: poly,
+    row: row,
+    startLabelMarker: startLabelMarker,
+    endLabelMarker: endLabelMarker,
+    leaderStart: leaderStart,
+    leaderEnd: leaderEnd,
     visible:true,
-
     boxColor:"#2196F3",
     textColor:"#ffffff"
   };
@@ -1161,16 +1171,24 @@ function createDrawnRoute(points){
   row.querySelector(".dr-start").oninput=function(){
     const text=this.value;
     entry.startLabelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + text + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
   };
 
   row.querySelector(".dr-end").oninput=function(){
     const text=this.value;
     entry.endLabelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${text}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + text + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
   };
 
@@ -1182,12 +1200,20 @@ function createDrawnRoute(points){
     entry.poly.setStyle({color:entry.boxColor});
 
     entry.startLabelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${startText}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + startText + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
     entry.endLabelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${endText}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + endText + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
   };
 
@@ -1197,12 +1223,20 @@ function createDrawnRoute(points){
     const endText=row.querySelector(".dr-end").value;
 
     entry.startLabelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${startText}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + startText + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
     entry.endLabelMarker.setIcon(L.divIcon({
-      html:`<div class="label-box" style="background:${entry.boxColor};color:${entry.textColor};font-size:12px;">${endText}</div>`,
-      className:"",iconSize:[0,0],iconAnchor:[-10,-10]
+      html:'<div class="label-box" style="background:' + entry.boxColor +
+           ';color:' + entry.textColor +
+           ';font-size:12px;">' + endText + '</div>',
+      className:"",
+      iconSize:[0,0],
+      iconAnchor:[-10,-10]
     }));
   };
 
@@ -1232,7 +1266,7 @@ function createDrawnRoute(points){
     leaderLayer.removeLayer(entry.leaderStart);
     leaderLayer.removeLayer(entry.leaderEnd);
     row.remove();
-    drawnRoutes=drawnRoutes.filter(x=>x.id!==entry.id);
+    drawnRoutes=drawnRoutes.filter(function(x){ return x.id!==entry.id; });
   };
 }
 
@@ -1241,4 +1275,3 @@ function createDrawnRoute(points){
 
 </body>
 </html>
-
