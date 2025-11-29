@@ -501,11 +501,13 @@ function createColourDropdown(selected){
   let html = "";
   for (let i = 0; i < presets.length; i++){
     const c = presets[i];
-    html += '<option value="' + c.box + '" data-text="' + c.text + '"' +
-            (c.box === selected ? ' selected' : '') +
-            '>' + c.box + '</option>';
+    html += '<option value="' + c.box + '" data-text="' + c.text + '"'
+         +      (c.box === selected ? ' selected' : '') 
+         +      ' style="background:' + c.box + '; color:' + c.text + ';">'
+         + '</option>';
   }
   return html;
+}
 }
 
 function createRouteRow(){
