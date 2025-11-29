@@ -496,15 +496,20 @@ function getRouteMode(r){
   return el ? el.value : "DRIVE";
 }
 
-function createColourDropdown(selected){
+ffunction createColourDropdown(selected){
   const presets = presetColors();
   let html = "";
   for (let i = 0; i < presets.length; i++){
     const c = presets[i];
+
+    const swatch = '<svg width="18" height="18" style="vertical-align:middle;">'
+                 + '<rect width="18" height="18" fill="' + c.box + '"/>'
+                 + '</svg>';
+
     html += '<option value="' + c.box + '" data-text="' + c.text + '"'
-         +      (c.box === selected ? ' selected' : '') 
-         +      ' style="background:' + c.box + '; color:' + c.text + ';">'
-         + '</option>';
+         +      (c.box === selected ? ' selected' : '') + '>'
+         +      swatch +
+         '</option>';
   }
   return html;
 }
