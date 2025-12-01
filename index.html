@@ -496,12 +496,12 @@ function getRouteMode(r){
   return el ? el.value : "DRIVE";
 }
 
+/* ========== UPDATED createColourDropdown WITH EMOJI SWATCHES ========== */
 function createColourDropdown(selected){
   const presets = presetColors();
 
   function emojiForColor(hex){
     const map = {
-      // Route Box Colours
       "#A72219": "🟥",
       "#D43B2A": "🟥",
       "#E58E26": "🟧",
@@ -513,7 +513,6 @@ function createColourDropdown(selected){
       "#2196F3": "🟦",
       "#0D47A1": "🟦",
 
-      // Text Colours
       "#ffffff": "⚪️",
       "#000000": "⚫️"
     };
@@ -533,6 +532,7 @@ function createColourDropdown(selected){
   }
 
   return html;
+}
 
 function createRouteRow(){
   const row = document.createElement("div");
@@ -624,7 +624,6 @@ function createRouteRow(){
     alert("Click map to place the END point.");
   };
 
-  /* colour dropdown change -> update route */
   row.querySelector(".boxColor").onchange =
   row.querySelector(".textColor").onchange = function(){
     if(r.startLatLng || r.endLatLng) drawRoute(r, getRouteMode(r));
@@ -709,7 +708,7 @@ function decodePolyline(encoded){
 async function computeRoute(start, end, mode){
   const body = {
     origin:{ location:{ latLng:{ latitude:start[0], longitude:start[1] }}},
-    destination:{ location:{ latLng:{ latitude:end[0], longitude:end[1] }}},
+    destination:{ location:{ latLng:{ latitude=end[0], longitude:end[1] }}},
     travelMode: mode
   };
 
