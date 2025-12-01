@@ -513,26 +513,25 @@ function createColourDropdown(selected){
       "#2196F3": "🟦",
       "#0D47A1": "🟦",
 
-      "#ffffff": "⚪️",
-      "#000000": "⚫️"
+      "#ffffff": "⚪",   // SAFE white emoji
+      "#000000": "⚫"    // SAFE black emoji
     };
-    return map[hex] || "⬜️";
+    return map[hex] || "⬜";  // SAFE fallback emoji
   }
 
   let html = "";
   for (let i = 0; i < presets.length; i++){
     const c = presets[i];
-    const emoji = emojiForColor(c.box);
-
     html +=
       '<option value="' + c.box + '" data-text="' + c.text + '"'
       + (c.box === selected ? ' selected' : '') + '>'
-      + emoji +
+      + emojiForColor(c.box) +
       '</option>';
   }
 
   return html;
 }
+
 
 function createRouteRow(){
   const row = document.createElement("div");
