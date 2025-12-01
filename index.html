@@ -533,22 +533,6 @@ function createColourDropdown(selected){
   }
 
   return html;
-}
-
-
-  }
-  let html = "";
-  for (let i = 0; i < presets.length; i++){
-    const c = presets[i];
-    const emoji = emojiForColor(c.box);
-
-    html +=
-      '<option value="' + c.box + '" data-text="' + c.text + '"'
-      + (c.box === selected ? ' selected' : '') + '>'
-      + emoji +
-      '</option>';
-  }
-  return html;
 
 function createRouteRow(){
   const row = document.createElement("div");
