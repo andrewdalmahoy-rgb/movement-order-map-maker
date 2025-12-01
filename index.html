@@ -287,7 +287,6 @@
   </style>
 </head>
 <body>
-
 <header>Movement Order Map Maker</header>
 
 <div class="layout">
@@ -365,7 +364,7 @@
 </div>
 
 <!-- Google Places -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M&libraries=places"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
 
 <script>
 /* ======================== MAP ======================== */
@@ -480,8 +479,7 @@ function makeMarker(color){
     iconAnchor:[16,48]
   });
 }
-
-/* ============ Leader Line (label → anchor) ============ */
+/* ======================== Leader Line (label → anchor) ======================== */
 function makeLeaderLine(fromLatLng, toLatLng){
   return L.polyline([fromLatLng, toLatLng], {
     color:"#000",
@@ -490,13 +488,7 @@ function makeLeaderLine(fromLatLng, toLatLng){
   });
 }
 
-/* ======================== CREATE ROUTE ROW ======================== */
-function getRouteMode(r){
-  const el = r.row.querySelector('input[name="mode-' + r.id + '"]:checked');
-  return el ? el.value : "DRIVE";
-}
-
-/* ========== UPDATED createColourDropdown WITH EMOJI SWATCHES ========== */
+/* ======================== UPDATED createColourDropdown WITH SAFE EMOJI SWATCHES ======================== */
 function createColourDropdown(selected){
   const presets = presetColors();
 
@@ -512,11 +504,10 @@ function createColourDropdown(selected){
       "#4FC3F7": "🟦",
       "#2196F3": "🟦",
       "#0D47A1": "🟦",
-
-      "#ffffff": "⚪",   // SAFE white emoji
-      "#000000": "⚫"    // SAFE black emoji
+      "#ffffff": "⚪",
+      "#000000": "⚫"
     };
-    return map[hex] || "⬜";  // SAFE fallback emoji
+    return map[hex] || "⬜";
   }
 
   let html = "";
@@ -532,6 +523,11 @@ function createColourDropdown(selected){
   return html;
 }
 
+/* ======================== CREATE ROUTE ROW ======================== */
+function getRouteMode(r){
+  const el = r.row.querySelector('input[name="mode-' + r.id + '"]:checked');
+  return el ? el.value : "DRIVE";
+}
 
 function createRouteRow(){
   const row = document.createElement("div");
@@ -623,6 +619,7 @@ function createRouteRow(){
     alert("Click map to place the END point.");
   };
 
+  /* colour dropdown change → update route */
   row.querySelector(".boxColor").onchange =
   row.querySelector(".textColor").onchange = function(){
     if(r.startLatLng || r.endLatLng) drawRoute(r, getRouteMode(r));
@@ -715,7 +712,7 @@ async function computeRoute(start, end, mode){
     method:"POST",
     headers:{
       "Content-Type":"application/json",
-      "X-Goog-Api-Key":"AIzaSyAiFfazXbeYvgokPycjxQ0oymMFi9uQF7M",
+      "X-Goog-Api-Key":"YOUR_GOOGLE_ROUTES_API_KEY",
       "X-Goog-FieldMask":"routes.polyline.encodedPolyline"
     },
     body:JSON.stringify(body)
@@ -892,7 +889,6 @@ document.getElementById("cancelDrawBtn").onclick = function(){
 const freeMarkerContainer = document.getElementById("freeMarkerContainer");
 let freeMarkers = [];
 let freeId = 1;
-
 /* FREE MARKER (DROPPED PIN) */
 function createFreeMarker(latlng, labelText, boxColor, textColor){
   const id = freeId++;
@@ -1031,7 +1027,7 @@ map.on("click", function(e){
     pickMode = null;
 
     if(which==="start") route.startLatLng = [latlng.lat, latlng.lng];
-    else               route.endLatLng   = [latlng.lat, latlng.lng];
+    else                route.endLatLng   = [latlng.lat, latlng.lng];
 
     drawRoute(route, getRouteMode(route));
     return;
