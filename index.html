@@ -500,19 +500,26 @@ function createColourDropdown(selected){
   const presets = presetColors();
 
   function emojiForColor(hex){
-    const map = {
-      "#A72219": "🟥",
-      "#D43B2A": "🟥",
-      "#E58E26": "🟧",
-      "#F2C94C": "🟨",
-      "#F8E45C": "🟨",
-      "#9CCC65": "🟩",
-      "#43A047": "🟩",
-      "#4FC3F7": "🟦",
-      "#2196F3": "🟦",
-      "#0D47A1": "🟦"
-    };
-    return map[hex] || "⬜️";
+  const map = {
+    // Route Box Colours
+    "#A72219": "🟥",
+    "#D43B2A": "🟥",
+    "#E58E26": "🟧",
+    "#F2C94C": "🟨",
+    "#F8E45C": "🟨",
+    "#9CCC65": "🟩",
+    "#43A047": "🟩",
+    "#4FC3F7": "🟦",
+    "#2196F3": "🟦",
+    "#0D47A1": "🟦",
+
+    // TEXT COLOURS
+    "#ffffff": "⚪️",
+    "#000000": "⚫️"
+  };
+  return map[hex] || "⬜️";
+}
+
   }
   let html = "";
   for (let i = 0; i < presets.length; i++){
